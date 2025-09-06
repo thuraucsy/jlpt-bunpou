@@ -1,11 +1,12 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 
 // Reactive data
 const grammarData = ref([])
 const searchTerm = ref('')
-const selectedLevel = ref('all')
+const selectedLevel = ref('3') // Default to N3 level for better performance
 const loading = ref(true)
+const filterLoading = ref(false) // Loading state for level changes
 const error = ref(null)
 
 // Load grammar data
@@ -49,11 +50,21 @@ const filteredGrammar = computed(() => {
   return filtered
 })
 
-// Get unique JLPT levels for filter dropdown
+// Get unique JLPT levels for filter dropdown with counts
 const jlptLevels = computed(() => {
   const levels = [...new Set(grammarData.value.map(item => item.n_level))].sort()
   return levels
 })
+
+// Get count of grammar points for each level
+const getLevelCount = (level) => {
+  return grammarData.value.filter(item => item.n_level === level).length
+}
+
+// Get total count of all grammar points
+const getTotalCount = () => {
+  return grammarData.value.length
+}
 
 // Get level color class
 const getLevelColor = (level) => {
@@ -72,6 +83,18 @@ const clearSearch = () => {
   searchTerm.value = ''
 }
 
+// Convert kanji(hiragana) format to ruby text (furigana)
+const convertToRuby = (text) => {
+  if (!text) return text
+  
+  // Regex to match kanji(hiragana) pattern
+  // [一-龯々] matches kanji characters including 々 (repetition mark)
+  // [ぁ-ゟ] matches hiragana characters
+  const kanjiHiraganaPattern = /([一-龯々]+)\(([ぁ-ゟ]+)\)/g
+  
+  return text.replace(kanjiHiraganaPattern, '<ruby>$1<rt>$2</rt></ruby>')
+}
+
 // Parse examples to separate multiple examples and JP/MM parts
 const parseExamples = (exampleText) => {
   if (!exampleText) return []
@@ -86,21 +109,48 @@ const parseExamples = (exampleText) => {
     
     if (parts.length >= 2) {
       return {
-        japanese: parts[0].trim() + '。', // Add back the Japanese period
+        japanese: convertToRuby(parts[0].trim() + '。'), // Add back the Japanese period and convert to ruby
         myanmar: parts.slice(1).join('。').trim() // Join remaining parts as Myanmar
       }
     } else {
       // If no Japanese period found, treat the whole thing as one example
       return {
-        japanese: trimmedExample,
+        japanese: convertToRuby(trimmedExample),
         myanmar: ''
       }
     }
   })
 }
 
+// Load saved level preference from localStorage
+const loadSavedLevel = () => {
+  const savedLevel = localStorage.getItem('jlpt-selected-level')
+  if (savedLevel) {
+    selectedLevel.value = savedLevel
+  }
+}
+
+// Save level preference to localStorage
+const saveLevelPreference = (level) => {
+  localStorage.setItem('jlpt-selected-level', level)
+}
+
+// Watch for level changes and save to localStorage
+watch(selectedLevel, async (newLevel) => {
+  saveLevelPreference(newLevel)
+  
+  // Show loading when level changes (except during initial load)
+  if (!loading.value) {
+    filterLoading.value = true
+    // Add a small delay to show loading state
+    await new Promise(resolve => setTimeout(resolve, 300))
+    filterLoading.value = false
+  }
+})
+
 // Load data on component mount
 onMounted(() => {
+  loadSavedLevel() // Load saved level preference first
   loadGrammarData()
 })
 </script>
@@ -109,7 +159,7 @@ onMounted(() => {
   <div class="app">
     <header class="header">
       <h1>🇯🇵 JLPT Grammar Guide</h1>
-      <p class="subtitle">Japanese Language Proficiency Test Grammar Points</p>
+      <p class="subtitle">Japanese Language Proficiency Test <br/>Grammar Points</p>
     </header>
 
     <div class="container">
@@ -143,16 +193,22 @@ onMounted(() => {
           <div class="level-filter">
             <label for="level-select">JLPT Level:</label>
             <select id="level-select" v-model="selectedLevel" class="level-select">
-              <option value="all">All Levels</option>
+              <option value="all">All Levels ({{ getTotalCount() }})</option>
               <option v-for="level in jlptLevels" :key="level" :value="level">
-                N{{ level }}
+                N{{ level }} ({{ getLevelCount(level) }})
               </option>
             </select>
           </div>
         </div>
 
+        <!-- Filter Loading State -->
+        <div v-if="filterLoading" class="filter-loading">
+          <div class="spinner"></div>
+          <p>Filtering grammar points...</p>
+        </div>
+
         <!-- Results Summary -->
-        <div class="results-summary">
+        <div v-else class="results-summary">
           <p>
             Showing <strong>{{ filteredGrammar.length }}</strong> 
             of <strong>{{ grammarData.length }}</strong> grammar points
@@ -160,17 +216,20 @@ onMounted(() => {
         </div>
 
         <!-- Grammar List -->
-        <div class="grammar-list">
+        <div v-if="!filterLoading" class="grammar-list">
           <div 
-            v-for="item in filteredGrammar" 
+            v-for="(item, index) in filteredGrammar" 
             :key="item.no"
             class="grammar-card"
           >
             <!-- Header -->
             <div class="card-header">
               <div class="grammar-title">
-                <span class="kanji" v-if="item.kanji">{{ item.kanji }}</span>
-                <span class="kana" v-if="item.kana">{{ item.kana }}</span>
+                <div class="grammar-number">{{ index + 1 }}.</div>
+                <div class="grammar-text">
+                  <span class="kanji" v-if="item.kanji">{{ item.kanji }}</span>
+                  <span class="kana" v-if="item.kana">{{ item.kana }}</span>
+                </div>
               </div>
               <span :class="['level-badge', getLevelColor(item.n_level)]">
                 N{{ item.n_level }}
@@ -188,6 +247,11 @@ onMounted(() => {
               <code>{{ item.where_to_use }}</code>
             </div>
 
+            <!-- Sensei Note -->
+            <div class="sensei-note" v-if="item.sensei_note">
+              <strong>📝 Sensei Note:</strong> {{ item.sensei_note }}
+            </div>
+
             <!-- Examples -->
             <div class="examples" v-if="item.tmp_example">
               <strong>Examples:</strong>
@@ -197,15 +261,10 @@ onMounted(() => {
                   :key="index"
                   class="example-item"
                 >
-                  <div class="japanese-text">{{ example.japanese }}</div>
+                  <div class="japanese-text" v-html="example.japanese"></div>
                   <div class="myanmar-text" v-if="example.myanmar">{{ example.myanmar }}</div>
                 </div>
               </div>
-            </div>
-
-            <!-- Sensei Note -->
-            <div class="sensei-note" v-if="item.sensei_note">
-              <strong>📝 Note:</strong> {{ item.sensei_note }}
             </div>
           </div>
         </div>
@@ -254,10 +313,14 @@ onMounted(() => {
   padding: 2rem 1rem;
 }
 
-.loading {
+.loading, .filter-loading {
   text-align: center;
   padding: 4rem 0;
   color: white;
+}
+
+.filter-loading {
+  padding: 2rem 0;
 }
 
 .spinner {
@@ -387,19 +450,28 @@ onMounted(() => {
 
 .grammar-title {
   display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.grammar-number {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #3498db;
+  min-width: 2rem;
+  flex-shrink: 0;
+}
+
+.grammar-text {
+  display: flex;
   flex-direction: column;
   gap: 0.25rem;
 }
 
-.kanji {
+.kanji, .kana {
   font-size: 1.5rem;
   font-weight: 700;
   color: #2c3e50;
-}
-
-.kana {
-  font-size: 1.1rem;
-  color: #7f8c8d;
 }
 
 .level-badge {
@@ -472,6 +544,47 @@ onMounted(() => {
   color: #7f8c8d;
   line-height: 1.7;
   font-style: italic;
+}
+
+/* Ruby/Furigana styles */
+.japanese-text ruby {
+  ruby-align: center;
+  ruby-position: over;
+}
+
+.japanese-text rt {
+  font-size: 0.7em;
+  color: #555;
+  font-weight: normal;
+  line-height: 1.2;
+  text-align: center;
+  display: block;
+  margin-bottom: 2px;
+}
+
+/* Enhanced fallback for browsers that don't support ruby */
+.japanese-text ruby {
+  display: inline-block;
+  text-align: center;
+  vertical-align: baseline;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.japanese-text ruby > rt {
+  display: block;
+  font-size: 0.7em;
+  line-height: 1.2;
+  text-align: center;
+  color: #555;
+  font-weight: normal;
+  margin-bottom: 2px;
+  white-space: nowrap;
+}
+
+.japanese-text ruby > rb {
+  display: block;
+  line-height: 1.4;
 }
 
 .sensei-note {
