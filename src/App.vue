@@ -62,18 +62,90 @@ const setupSystemDarkModeListener = () => {
   return () => {}
 }
 
-// Load grammar data
+// Load grammar data with offline support
 const loadGrammarData = async () => {
   try {
     loading.value = true
-    const response = await fetch('/jlpt_bunpou_data.json')
-    if (!response.ok) {
-      throw new Error('Failed to load grammar data')
+    error.value = null
+    
+    // Try to load from cache first (localStorage backup)
+    const cachedData = localStorage.getItem('jlpt-grammar-data')
+    const cacheTimestamp = localStorage.getItem('jlpt-grammar-data-timestamp')
+    
+    // If we have cached data, use it immediately while trying to fetch fresh data
+    if (cachedData) {
+      try {
+        const parsedCachedData = JSON.parse(cachedData)
+        grammarData.value = parsedCachedData.sort((a, b) => a.n_level - b.n_level || a.no - b.no)
+        loading.value = false
+        console.log('Loaded grammar data from cache')
+      } catch (cacheError) {
+        console.warn('Failed to parse cached data:', cacheError)
+      }
     }
-    const data = await response.json()
-    grammarData.value = data.sort((a, b) => a.n_level - b.n_level || a.no - b.no)
-    loading.value = false
+    
+    // Try to fetch fresh data from network
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+      
+      const response = await fetch('/jlpt_bunpou_data.json', {
+        signal: controller.signal,
+        cache: 'no-cache' // Always try to get fresh data
+      })
+      
+      clearTimeout(timeoutId)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      
+      const data = await response.json()
+      
+      // Update data and cache
+      grammarData.value = data.sort((a, b) => a.n_level - b.n_level || a.no - b.no)
+      
+      // Cache the fresh data
+      localStorage.setItem('jlpt-grammar-data', JSON.stringify(data))
+      localStorage.setItem('jlpt-grammar-data-timestamp', Date.now().toString())
+      
+      loading.value = false
+      console.log('Loaded fresh grammar data from network')
+      
+    } catch (networkError) {
+      console.warn('Network fetch failed:', networkError.message)
+      
+      // If we already have cached data, we're good
+      if (cachedData && grammarData.value.length > 0) {
+        loading.value = false
+        console.log('Using cached data due to network failure')
+        return
+      }
+      
+      // Try to get data from service worker cache as last resort
+      try {
+        if ('caches' in window) {
+          const cache = await caches.open('workbox-precache-v2-/jlpt-bunpou/')
+          const cachedResponse = await cache.match('/jlpt_bunpou_data.json')
+          
+          if (cachedResponse) {
+            const data = await cachedResponse.json()
+            grammarData.value = data.sort((a, b) => a.n_level - b.n_level || a.no - b.no)
+            loading.value = false
+            console.log('Loaded grammar data from service worker cache')
+            return
+          }
+        }
+      } catch (swCacheError) {
+        console.warn('Service worker cache access failed:', swCacheError)
+      }
+      
+      // If all else fails, show error
+      throw new Error('Unable to load grammar data. Please check your internet connection and try again.')
+    }
+    
   } catch (err) {
+    console.error('Failed to load grammar data:', err)
     error.value = err.message
     loading.value = false
   }
