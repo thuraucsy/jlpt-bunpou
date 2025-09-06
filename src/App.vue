@@ -9,6 +9,14 @@ const loading = ref(true)
 const filterLoading = ref(false) // Loading state for level changes
 const error = ref(null)
 const showBackToTop = ref(false) // Show back to top button
+const isFlashcardMode = ref(false) // Toggle flashcard mode
+const currentCardIndex = ref(0) // Current flashcard index
+const modeLoading = ref(false) // Loading state for mode transitions
+
+// Touch/swipe handling for mobile flashcards
+const touchStartX = ref(0)
+const touchStartY = ref(0)
+const isSwipeAnimating = ref(false)
 
 // Load grammar data
 const loadGrammarData = async () => {
@@ -149,6 +157,94 @@ const scrollToTop = () => {
   })
 }
 
+// Flashcard navigation functions
+const toggleFlashcardMode = async () => {
+  modeLoading.value = true
+  // Add a small delay to show loading state
+  await new Promise(resolve => setTimeout(resolve, 400))
+  isFlashcardMode.value = !isFlashcardMode.value
+  currentCardIndex.value = 0 // Reset to first card when toggling
+  modeLoading.value = false
+}
+
+const nextCard = () => {
+  if (currentCardIndex.value < filteredGrammar.value.length - 1) {
+    currentCardIndex.value++
+  }
+}
+
+const prevCard = () => {
+  if (currentCardIndex.value > 0) {
+    currentCardIndex.value--
+  }
+}
+
+const goToCard = (index) => {
+  if (index >= 0 && index < filteredGrammar.value.length) {
+    currentCardIndex.value = index
+  }
+}
+
+// Current card for flashcard mode
+const currentCard = computed(() => {
+  return filteredGrammar.value[currentCardIndex.value] || null
+})
+
+// Touch/swipe event handlers for mobile flashcards
+const handleTouchStart = (event) => {
+  if (!isFlashcardMode.value || isSwipeAnimating.value) return
+  
+  const touch = event.touches[0]
+  touchStartX.value = touch.clientX
+  touchStartY.value = touch.clientY
+}
+
+const handleTouchEnd = (event) => {
+  if (!isFlashcardMode.value || isSwipeAnimating.value) return
+  
+  const touch = event.changedTouches[0]
+  const deltaX = touch.clientX - touchStartX.value
+  const deltaY = touch.clientY - touchStartY.value
+  
+  // Check if it's a horizontal swipe (more horizontal than vertical)
+  if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
+    isSwipeAnimating.value = true
+    
+    if (deltaX > 0) {
+      // Swipe right - go to previous card
+      prevCard()
+    } else {
+      // Swipe left - go to next card
+      nextCard()
+    }
+    
+    // Reset animation flag after a short delay
+    setTimeout(() => {
+      isSwipeAnimating.value = false
+    }, 300)
+  }
+}
+
+// Keyboard navigation for flashcard mode
+const handleKeydown = (event) => {
+  if (!isFlashcardMode.value) return
+  
+  switch (event.key) {
+    case 'ArrowLeft':
+      event.preventDefault()
+      prevCard()
+      break
+    case 'ArrowRight':
+      event.preventDefault()
+      nextCard()
+      break
+    case 'Escape':
+      event.preventDefault()
+      toggleFlashcardMode()
+      break
+  }
+}
+
 // Watch for level changes and save to localStorage
 watch(selectedLevel, async (newLevel) => {
   saveLevelPreference(newLevel)
@@ -169,12 +265,15 @@ onMounted(() => {
   
   // Add scroll event listener
   window.addEventListener('scroll', handleScroll)
+  // Add keyboard event listener
+  window.addEventListener('keydown', handleKeydown)
 })
 
 // Cleanup on unmount
 import { onUnmounted } from 'vue'
 onUnmounted(() => {
   window.removeEventListener('scroll', handleScroll)
+  window.removeEventListener('keydown', handleKeydown)
 })
 </script>
 
@@ -203,6 +302,16 @@ onUnmounted(() => {
       <div v-else>
         <!-- Filters -->
         <div class="filters">
+          <div class="level-filter">
+            <label for="level-select">JLPT Level:</label>
+            <select id="level-select" v-model="selectedLevel" class="level-select">
+              <option value="all">All Levels ({{ getTotalCount() }})</option>
+              <option v-for="level in jlptLevels" :key="level" :value="level">
+                N{{ level }} ({{ getLevelCount(level) }})
+              </option>
+            </select>
+          </div>
+
           <div class="search-box">
             <input 
               v-model="searchTerm"
@@ -213,21 +322,25 @@ onUnmounted(() => {
             <button v-if="searchTerm" @click="clearSearch()" class="clear-btn">✕</button>
           </div>
 
-          <div class="level-filter">
-            <label for="level-select">JLPT Level:</label>
-            <select id="level-select" v-model="selectedLevel" class="level-select">
-              <option value="all">All Levels ({{ getTotalCount() }})</option>
-              <option v-for="level in jlptLevels" :key="level" :value="level">
-                N{{ level }} ({{ getLevelCount(level) }})
-              </option>
-            </select>
-          </div>
+          <button 
+            @click="toggleFlashcardMode"
+            class="flashcard-toggle"
+            :class="{ active: isFlashcardMode }"
+          >
+            {{ isFlashcardMode ? '📋 List View' : '🃏 Flashcard Mode' }}
+          </button>
         </div>
 
         <!-- Filter Loading State -->
         <div v-if="filterLoading" class="filter-loading">
           <div class="spinner"></div>
           <p>Filtering grammar points...</p>
+        </div>
+
+        <!-- Mode Loading State -->
+        <div v-else-if="modeLoading" class="filter-loading">
+          <div class="spinner"></div>
+          <p>{{ isFlashcardMode ? 'Switching to List View...' : 'Switching to Flashcard Mode...' }}</p>
         </div>
 
         <!-- Results Summary -->
@@ -238,14 +351,111 @@ onUnmounted(() => {
           </p>
         </div>
 
-        <!-- Grammar List -->
-        <div v-if="!filterLoading" class="grammar-list">
+        <!-- Flashcard Mode -->
+        <div v-if="!filterLoading && !modeLoading && isFlashcardMode && currentCard" class="flashcard-container">
+          <!-- Flashcard Navigation - Desktop -->
+          <div class="flashcard-nav desktop-nav">
+            <button 
+              @click="prevCard" 
+              :disabled="currentCardIndex === 0"
+              class="nav-btn prev-btn"
+            >
+              ← Previous
+            </button>
+            
+            <div class="flashcard-counter">
+              {{ currentCardIndex + 1 }} / {{ filteredGrammar.length }}
+            </div>
+            
+            <button 
+              @click="nextCard" 
+              :disabled="currentCardIndex === filteredGrammar.length - 1"
+              class="nav-btn next-btn"
+            >
+              Next →
+            </button>
+          </div>
+
+          <!-- Mobile Swipe Info -->
+          <div class="mobile-swipe-info">
+            <div class="swipe-counter">
+              {{ currentCardIndex + 1 }} / {{ filteredGrammar.length }}
+            </div>
+            <div class="swipe-instructions">
+              <span class="swipe-icon">👈</span>
+              <span class="swipe-text">Swipe to navigate</span>
+              <span class="swipe-icon">👉</span>
+            </div>
+          </div>
+
+          <!-- Single Flashcard -->
+          <div 
+            class="flashcard"
+            @touchstart="handleTouchStart"
+            @touchend="handleTouchEnd"
+            :class="{ 'swipe-animating': isSwipeAnimating }"
+          >
+            <!-- Grammar Number at Top Right -->
+            <div class="grammar-number-top">{{ currentCardIndex + 1 }}</div>
+            
+            <!-- Header -->
+            <div class="card-header">
+              <div class="grammar-title">
+                <span class="kanji" v-if="currentCard.kanji">{{ currentCard.kanji }}</span>
+                <span class="kana" v-if="currentCard.kana">{{ currentCard.kana }}</span>
+              </div>
+              <span :class="['level-badge', getLevelColor(currentCard.n_level)]">
+                N{{ currentCard.n_level }}
+              </span>
+            </div>
+
+            <!-- Meaning -->
+            <div class="meaning">
+              <strong>Meaning:</strong> {{ currentCard.meaning_mm }}
+            </div>
+
+            <!-- Usage Pattern -->
+            <div class="usage" v-if="currentCard.where_to_use">
+              <strong>Usage:</strong> 
+              <code>{{ currentCard.where_to_use }}</code>
+            </div>
+
+            <!-- Sensei Note -->
+            <div class="sensei-note" v-if="currentCard.sensei_note">
+              <strong>📝 Sensei Note:</strong> {{ currentCard.sensei_note }}
+            </div>
+
+            <!-- Examples -->
+            <div class="examples" v-if="currentCard.tmp_example">
+              <strong>Examples:</strong>
+              <div class="parsed-examples">
+                <div 
+                  v-for="(example, index) in parseExamples(currentCard.tmp_example)" 
+                  :key="index"
+                  class="example-item"
+                >
+                  <div class="japanese-text" v-html="example.japanese"></div>
+                  <div class="myanmar-text" v-if="example.myanmar">{{ example.myanmar }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Keyboard Hints -->
+          <div class="keyboard-hints">
+            <span>← → Arrow keys to navigate</span>
+            <span>ESC to exit flashcard mode</span>
+          </div>
+        </div>
+
+        <!-- Grammar List (Normal View) -->
+        <div v-if="!filterLoading && !modeLoading && !isFlashcardMode" class="grammar-list">
           <div 
             v-for="(item, index) in filteredGrammar" 
             :key="item.no"
             class="grammar-card"
           >
-            <!-- Grammar Number at Top Center -->
+            <!-- Grammar Number at Top Right -->
             <div class="grammar-number-top">{{ index + 1 }}</div>
             
             <!-- Header -->
@@ -683,6 +893,181 @@ onUnmounted(() => {
   transform: translateY(-1px) scale(1.05);
 }
 
+/* Flashcard Toggle Button */
+.flashcard-toggle {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 25px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: rgba(255, 255, 255, 0.9);
+  color: #2c3e50;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.flashcard-toggle:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+.flashcard-toggle.active {
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  color: white;
+}
+
+/* Flashcard Container */
+.flashcard-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+/* Flashcard Navigation */
+.flashcard-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 400px;
+  gap: 2rem;
+}
+
+.nav-btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 25px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: linear-gradient(135deg, #3498db, #2980b9);
+  color: white;
+  box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+}
+
+.nav-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
+}
+
+.nav-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.flashcard-counter {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: white;
+  text-align: center;
+  min-width: 100px;
+}
+
+/* Mobile Swipe Info */
+.mobile-swipe-info {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  max-width: 400px;
+}
+
+.swipe-counter {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: white;
+  text-align: center;
+}
+
+.swipe-instructions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 0.75rem 1.5rem;
+  border-radius: 25px;
+  backdrop-filter: blur(10px);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.swipe-icon {
+  font-size: 1.2rem;
+  animation: swipeHint 2s ease-in-out infinite;
+}
+
+.swipe-text {
+  white-space: nowrap;
+}
+
+@keyframes swipeHint {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-3px); }
+  75% { transform: translateX(3px); }
+}
+
+/* Single Flashcard */
+.flashcard {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  padding: 2rem;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  position: relative;
+  width: 100%;
+  max-width: 700px;
+  min-height: 400px;
+  padding-top: 3rem;
+}
+
+.flashcard:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+.flashcard .grammar-number-top {
+  width: 40px;
+  height: 40px;
+  font-size: 1.1rem;
+  top: -15px;
+  right: -15px;
+}
+
+.flashcard .kanji, .flashcard .kana {
+  font-size: 2rem;
+}
+
+/* Swipe Animation */
+.flashcard.swipe-animating {
+  transform: scale(0.98);
+  transition: transform 0.3s ease;
+}
+
+/* Keyboard Hints */
+.keyboard-hints {
+  display: flex;
+  gap: 2rem;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.keyboard-hints span {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  backdrop-filter: blur(10px);
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .header h1 {
@@ -727,6 +1112,53 @@ onUnmounted(() => {
     flex-direction: column;
     gap: 1rem;
   }
+
+  /* Flashcard responsive adjustments */
+  .flashcard-container {
+    max-width: 100%;
+    padding: 0 0.5rem;
+    gap: 1.5rem;
+  }
+  
+  /* Hide desktop nav, show mobile swipe info */
+  .desktop-nav {
+    display: none;
+  }
+  
+  .mobile-swipe-info {
+    display: flex;
+  }
+  
+  .flashcard-nav {
+    max-width: 100%;
+    gap: 1rem;
+  }
+  
+  .nav-btn {
+    padding: 0.6rem 1rem;
+    font-size: 0.9rem;
+  }
+  
+  .flashcard-counter {
+    font-size: 1rem;
+    min-width: 80px;
+  }
+  
+  .flashcard {
+    padding: 1.5rem;
+    padding-top: 2.5rem;
+    min-height: 350px;
+    max-width: 100%;
+    margin: 0;
+  }
+  
+  .flashcard .kanji, .flashcard .kana {
+    font-size: 1.8rem;
+  }
+  
+  .keyboard-hints {
+    display: none;
+  }
 }
 
 /* Extra small screens */
@@ -750,6 +1182,90 @@ onUnmounted(() => {
   
   .grammar-card {
     padding: 0.75rem;
+  }
+
+  /* Extra small flashcard adjustments - behave like list view */
+  .flashcard-container {
+    padding: 0 0.25rem;
+    gap: 0.75rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .flashcard-nav {
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: center;
+    width: 100%;
+    max-width: 100%;
+  }
+  
+  .nav-btn {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+    width: 110px;
+    max-width: 45%;
+  }
+  
+  .flashcard-counter {
+    order: -1;
+    font-size: 0.85rem;
+  }
+  
+  .flashcard {
+    padding: 0.75rem;
+    padding-top: 1.75rem;
+    min-height: 280px;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    box-sizing: border-box;
+  }
+  
+  .flashcard .grammar-number-top {
+    width: 30px;
+    height: 30px;
+    font-size: 0.9rem;
+    top: -10px;
+    right: -10px;
+  }
+  
+  .flashcard .kanji, .flashcard .kana {
+    font-size: 1.3rem;
+    word-break: break-word;
+  }
+  
+  .flashcard .card-header {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: flex-start;
+  }
+  
+  .flashcard .meaning, 
+  .flashcard .usage, 
+  .flashcard .examples, 
+  .flashcard .sensei-note {
+    margin-bottom: 0.75rem;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+  
+  .flashcard .example-item {
+    padding: 0.75rem;
+  }
+  
+  .keyboard-hints {
+    font-size: 0.7rem;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  .keyboard-hints span {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.65rem;
   }
 }
 </style>
