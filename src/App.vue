@@ -8,6 +8,7 @@ const selectedLevel = ref('3') // Default to N3 level for better performance
 const loading = ref(true)
 const filterLoading = ref(false) // Loading state for level changes
 const error = ref(null)
+const showBackToTop = ref(false) // Show back to top button
 
 // Load grammar data
 const loadGrammarData = async () => {
@@ -135,6 +136,19 @@ const saveLevelPreference = (level) => {
   localStorage.setItem('jlpt-selected-level', level)
 }
 
+// Handle scroll events for back to top button
+const handleScroll = () => {
+  showBackToTop.value = window.scrollY > 500 // Show after scrolling 500px
+}
+
+// Scroll to top function
+const scrollToTop = () => {
+  window.scrollTo({
+    top: 0,
+    behavior: 'smooth'
+  })
+}
+
 // Watch for level changes and save to localStorage
 watch(selectedLevel, async (newLevel) => {
   saveLevelPreference(newLevel)
@@ -152,6 +166,15 @@ watch(selectedLevel, async (newLevel) => {
 onMounted(() => {
   loadSavedLevel() // Load saved level preference first
   loadGrammarData()
+  
+  // Add scroll event listener
+  window.addEventListener('scroll', handleScroll)
+})
+
+// Cleanup on unmount
+import { onUnmounted } from 'vue'
+onUnmounted(() => {
+  window.removeEventListener('scroll', handleScroll)
 })
 </script>
 
@@ -276,6 +299,16 @@ onMounted(() => {
         </div>
       </div>
     </div>
+
+    <!-- Back to Top Button -->
+    <button 
+      v-if="showBackToTop"
+      @click="scrollToTop"
+      class="back-to-top"
+      aria-label="Back to top"
+    >
+      ↑
+    </button>
   </div>
 </template>
 
@@ -616,6 +649,38 @@ onMounted(() => {
 .empty-state h3 {
   font-size: 2rem;
   margin-bottom: 1rem;
+}
+
+/* Back to Top Button */
+.back-to-top {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  width: 50px;
+  height: 50px;
+  background: linear-gradient(135deg, #3498db, #2980b9);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  font-size: 1.5rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+  transition: all 0.3s ease;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.back-to-top:hover {
+  transform: translateY(-3px) scale(1.1);
+  box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
+  background: linear-gradient(135deg, #2980b9, #3498db);
+}
+
+.back-to-top:active {
+  transform: translateY(-1px) scale(1.05);
 }
 
 /* Responsive Design */
