@@ -222,14 +222,14 @@ onMounted(() => {
             :key="item.no"
             class="grammar-card"
           >
+            <!-- Grammar Number at Top Center -->
+            <div class="grammar-number-top">{{ index + 1 }}</div>
+            
             <!-- Header -->
             <div class="card-header">
               <div class="grammar-title">
-                <div class="grammar-number">{{ index + 1 }}.</div>
-                <div class="grammar-text">
-                  <span class="kanji" v-if="item.kanji">{{ item.kanji }}</span>
-                  <span class="kana" v-if="item.kana">{{ item.kana }}</span>
-                </div>
+                <span class="kanji" v-if="item.kanji">{{ item.kanji }}</span>
+                <span class="kana" v-if="item.kana">{{ item.kana }}</span>
               </div>
               <span :class="['level-badge', getLevelColor(item.n_level)]">
                 N{{ item.n_level }}
@@ -434,11 +434,38 @@ onMounted(() => {
   padding: 1.5rem;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
+  position: relative;
+  padding-top: 2.5rem;
 }
 
 .grammar-card:hover {
   transform: translateY(-5px);
   box-shadow: 0 12px 35px rgba(0, 0, 0, 0.15);
+}
+
+.grammar-number-top {
+  position: absolute;
+  top: -12px;
+  right: -12px;
+  background: linear-gradient(135deg, #3498db, #2980b9);
+  color: white;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+  border: 3px solid rgba(255, 255, 255, 0.95);
+  z-index: 10;
+  transition: all 0.3s ease;
+}
+
+.grammar-card:hover .grammar-number-top {
+  transform: scale(1.1);
+  box-shadow: 0 6px 16px rgba(52, 152, 219, 0.4);
 }
 
 .card-header {
@@ -449,20 +476,6 @@ onMounted(() => {
 }
 
 .grammar-title {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-}
-
-.grammar-number {
-  font-size: 1.2rem;
-  font-weight: 700;
-  color: #3498db;
-  min-width: 2rem;
-  flex-shrink: 0;
-}
-
-.grammar-text {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
