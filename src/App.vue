@@ -21,6 +21,47 @@ const isSwipeAnimating = ref(false)
 // Favorites functionality
 const favorites = ref(new Set())
 
+// Dark mode functionality
+const isDarkMode = ref(false)
+const isSystemDarkMode = ref(false)
+
+// System dark mode detection
+const detectSystemDarkMode = () => {
+  if (window.matchMedia) {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    isSystemDarkMode.value = mediaQuery.matches
+    return mediaQuery.matches
+  }
+  return false
+}
+
+// Dark mode functions - OS dependent only
+const initializeSystemDarkMode = () => {
+  // Always use system preference
+  isDarkMode.value = detectSystemDarkMode()
+}
+
+// Listen for system dark mode changes
+const setupSystemDarkModeListener = () => {
+  if (window.matchMedia) {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    
+    const handleSystemDarkModeChange = (e) => {
+      isSystemDarkMode.value = e.matches
+      // Always follow system preference
+      isDarkMode.value = e.matches
+    }
+    
+    mediaQuery.addEventListener('change', handleSystemDarkModeChange)
+    
+    // Return cleanup function
+    return () => {
+      mediaQuery.removeEventListener('change', handleSystemDarkModeChange)
+    }
+  }
+  return () => {}
+}
+
 // Load grammar data
 const loadGrammarData = async () => {
   try {
@@ -338,12 +379,19 @@ watch(selectedLevel, async (newLevel) => {
 onMounted(() => {
   loadSavedLevel() // Load saved level preference first
   loadFavorites() // Load saved favorites
+  initializeSystemDarkMode() // Initialize system dark mode
   loadGrammarData()
+  
+  // Set up system dark mode listener
+  const cleanupSystemListener = setupSystemDarkModeListener()
   
   // Add scroll event listener
   window.addEventListener('scroll', handleScroll)
   // Add keyboard event listener
   window.addEventListener('keydown', handleKeydown)
+  
+  // Store cleanup function for unmount
+  window._darkModeCleanup = cleanupSystemListener
 })
 
 // Cleanup on unmount
@@ -351,11 +399,17 @@ import { onUnmounted } from 'vue'
 onUnmounted(() => {
   window.removeEventListener('scroll', handleScroll)
   window.removeEventListener('keydown', handleKeydown)
+  
+  // Cleanup system dark mode listener
+  if (window._darkModeCleanup) {
+    window._darkModeCleanup()
+    delete window._darkModeCleanup
+  }
 })
 </script>
 
 <template>
-  <div class="app">
+  <div class="app" :class="{ 'dark-mode': isDarkMode }">
     <header class="header">
       <h1>🇯🇵 JLPT Grammar Guide</h1>
       <p class="subtitle">Grammar Points <br/>for the Japanese Language Proficiency Test</p>
@@ -1475,6 +1529,191 @@ onUnmounted(() => {
   .keyboard-hints span {
     padding: 0.3rem 0.6rem;
     font-size: 0.65rem;
+  }
+}
+
+/* Dark Mode Styles */
+.app.dark-mode {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+}
+
+.app.dark-mode .header {
+  background: rgba(30, 30, 30, 0.95);
+  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
+}
+
+.app.dark-mode .header h1 {
+  color: #e8e8e8;
+}
+
+.app.dark-mode .subtitle {
+  color: #b0b0b0;
+}
+
+.app.dark-mode .level-filter {
+  color: #e8e8e8;
+}
+
+.app.dark-mode .level-select {
+  background: rgba(40, 40, 40, 0.9);
+  color: #e8e8e8;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.app.dark-mode .search-input {
+  background: rgba(40, 40, 40, 0.9);
+  color: #e8e8e8;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.app.dark-mode .search-input::placeholder {
+  color: #888;
+}
+
+.app.dark-mode .clear-btn {
+  color: #b0b0b0;
+}
+
+.app.dark-mode .flashcard-toggle {
+  background: rgba(40, 40, 40, 0.9);
+  color: #e8e8e8;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.app.dark-mode .flashcard-toggle:hover {
+  background: rgba(50, 50, 50, 0.9);
+}
+
+.app.dark-mode .flashcard-toggle.active {
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  color: white;
+  border: 1px solid transparent;
+}
+
+.app.dark-mode .grammar-card,
+.app.dark-mode .flashcard {
+  background: rgba(40, 40, 40, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+.app.dark-mode .grammar-card:hover,
+.app.dark-mode .flashcard:hover {
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.4);
+}
+
+.app.dark-mode .kanji,
+.app.dark-mode .kana {
+  color: #e8e8e8;
+}
+
+.app.dark-mode .meaning strong,
+.app.dark-mode .usage strong,
+.app.dark-mode .examples strong,
+.app.dark-mode .sensei-note strong {
+  color: #e8e8e8;
+}
+
+.app.dark-mode .meaning,
+.app.dark-mode .usage,
+.app.dark-mode .examples {
+  color: #d0d0d0;
+}
+
+.app.dark-mode .usage code {
+  background: rgba(60, 60, 60, 0.8);
+  color: #ff6b6b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.app.dark-mode .example-item {
+  background: rgba(50, 50, 50, 0.8);
+  border-left: 4px solid #4a9eff;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.app.dark-mode .japanese-text {
+  color: #e8e8e8;
+}
+
+.app.dark-mode .japanese-text rt {
+  color: #b0b0b0;
+}
+
+.app.dark-mode .myanmar-text {
+  color: #b0b0b0;
+}
+
+.app.dark-mode .sensei-note {
+  background: rgba(60, 50, 30, 0.8);
+  border-left: 4px solid #ffc107;
+  border: 1px solid rgba(255, 193, 7, 0.2);
+  color: #f0f0f0;
+}
+
+.app.dark-mode .error {
+  background: rgba(231, 76, 60, 0.9);
+  border: 1px solid rgba(231, 76, 60, 0.3);
+}
+
+.app.dark-mode .retry-btn {
+  background: #e8e8e8;
+  color: #e74c3c;
+}
+
+.app.dark-mode .nav-btn {
+  background: linear-gradient(135deg, #4a9eff, #357abd);
+  border: 1px solid rgba(74, 158, 255, 0.3);
+}
+
+.app.dark-mode .nav-btn:hover:not(:disabled) {
+  box-shadow: 0 6px 20px rgba(74, 158, 255, 0.4);
+}
+
+.app.dark-mode .back-to-top {
+  background: linear-gradient(135deg, #4a9eff, #357abd);
+  border: 1px solid rgba(74, 158, 255, 0.3);
+}
+
+.app.dark-mode .back-to-top:hover {
+  background: linear-gradient(135deg, #357abd, #4a9eff);
+  box-shadow: 0 6px 20px rgba(74, 158, 255, 0.4);
+}
+
+/* Dark mode responsive adjustments */
+@media (max-width: 768px) {
+  .header-content {
+    flex-direction: column;
+    gap: 1rem;
+    padding: 0 0.5rem;
+  }
+  
+  .dark-mode-toggle {
+    position: static;
+    transform: none;
+    width: 45px;
+    height: 45px;
+    font-size: 1.3rem;
+  }
+  
+  .dark-mode-toggle:hover {
+    transform: scale(1.1);
+  }
+  
+  .header-text {
+    text-align: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-content {
+    padding: 0 0.25rem;
+  }
+  
+  .dark-mode-toggle {
+    width: 40px;
+    height: 40px;
+    font-size: 1.2rem;
   }
 }
 </style>
