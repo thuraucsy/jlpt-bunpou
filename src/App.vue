@@ -18,6 +18,9 @@ const touchStartX = ref(0)
 const touchStartY = ref(0)
 const isSwipeAnimating = ref(false)
 
+// Favorites functionality
+const favorites = ref(new Set())
+
 // Load grammar data
 const loadGrammarData = async () => {
   try {
@@ -39,8 +42,34 @@ const loadGrammarData = async () => {
 const filteredGrammar = computed(() => {
   let filtered = grammarData.value
 
-  // Filter by JLPT level
-  if (selectedLevel.value !== 'all') {
+  // Filter by JLPT level or favorites
+  if (selectedLevel.value === 'favorites') {
+    // Show only favorites, ordered by when they were added (most recent first)
+    filtered = filtered.filter(item => favorites.value.has(item.no))
+    
+    // Sort by favorites order (most recently added first)
+    try {
+      const savedFavorites = localStorage.getItem('jlpt-favorites')
+      if (savedFavorites) {
+        const favArray = JSON.parse(savedFavorites)
+        // Create a map of grammar number to its position in favorites array (reversed for desc order)
+        const favOrderMap = new Map()
+        favArray.forEach((grammarNo, index) => {
+          favOrderMap.set(grammarNo, favArray.length - index) // Higher number = more recent
+        })
+        
+        // Sort filtered items by their position in favorites array
+        filtered.sort((a, b) => {
+          const orderA = favOrderMap.get(a.no) || 0
+          const orderB = favOrderMap.get(b.no) || 0
+          return orderA - orderB // Ascending order (most recent first)
+        })
+      }
+    } catch (error) {
+      console.error('Error sorting favorites:', error)
+    }
+  } else if (selectedLevel.value !== 'all') {
+    // Filter by specific JLPT level
     filtered = filtered.filter(item => item.n_level === parseInt(selectedLevel.value))
   }
 
@@ -74,6 +103,50 @@ const getLevelCount = (level) => {
 const getTotalCount = () => {
   return grammarData.value.length
 }
+
+// Get total count of favorite grammar points
+const getTotalFavoriteCount = () => {
+  return favorites.value.size
+}
+
+// Favorites functionality
+const toggleFavorite = (grammarNo) => {
+  if (favorites.value.has(grammarNo)) {
+    favorites.value.delete(grammarNo)
+  } else {
+    favorites.value.add(grammarNo)
+  }
+  saveFavorites()
+}
+
+const isFavorite = (grammarNo) => {
+  return favorites.value.has(grammarNo)
+}
+
+// Load favorites from localStorage
+const loadFavorites = () => {
+  try {
+    const savedFavorites = localStorage.getItem('jlpt-favorites')
+    if (savedFavorites) {
+      const favArray = JSON.parse(savedFavorites)
+      favorites.value = new Set(favArray)
+    }
+  } catch (error) {
+    console.error('Error loading favorites:', error)
+    favorites.value = new Set()
+  }
+}
+
+// Save favorites to localStorage
+const saveFavorites = () => {
+  try {
+    const favArray = Array.from(favorites.value)
+    localStorage.setItem('jlpt-favorites', JSON.stringify(favArray))
+  } catch (error) {
+    console.error('Error saving favorites:', error)
+  }
+}
+
 
 // Get level color class
 const getLevelColor = (level) => {
@@ -249,6 +322,9 @@ const handleKeydown = (event) => {
 watch(selectedLevel, async (newLevel) => {
   saveLevelPreference(newLevel)
   
+  // Reset card index when changing levels
+  currentCardIndex.value = 0
+  
   // Show loading when level changes (except during initial load)
   if (!loading.value) {
     filterLoading.value = true
@@ -261,6 +337,7 @@ watch(selectedLevel, async (newLevel) => {
 // Load data on component mount
 onMounted(() => {
   loadSavedLevel() // Load saved level preference first
+  loadFavorites() // Load saved favorites
   loadGrammarData()
   
   // Add scroll event listener
@@ -305,9 +382,14 @@ onUnmounted(() => {
           <div class="level-filter">
             <label for="level-select">JLPT Level:</label>
             <select id="level-select" v-model="selectedLevel" class="level-select">
-              <option value="all">All Levels ({{ getTotalCount() }})</option>
+              <option value="all">
+                All Levels ({{ getTotalCount() }})
+              </option>
               <option v-for="level in jlptLevels" :key="level" :value="level">
                 N{{ level }} ({{ getLevelCount(level) }})
+              </option>
+              <option value="favorites">
+                ⭐ Favorites ({{ getTotalFavoriteCount() }})
               </option>
             </select>
           </div>
@@ -404,9 +486,19 @@ onUnmounted(() => {
                 <span class="kanji" v-if="currentCard.kanji">{{ currentCard.kanji }}</span>
                 <span class="kana" v-if="currentCard.kana">{{ currentCard.kana }}</span>
               </div>
-              <span :class="['level-badge', getLevelColor(currentCard.n_level)]">
-                N{{ currentCard.n_level }}
-              </span>
+              <div class="card-header-right">
+                <button 
+                  @click="toggleFavorite(currentCard.no)"
+                  class="favorite-btn"
+                  :class="{ active: isFavorite(currentCard.no) }"
+                  :title="isFavorite(currentCard.no) ? 'Remove from favorites' : 'Add to favorites'"
+                >
+                  {{ isFavorite(currentCard.no) ? '⭐' : '☆' }}
+                </button>
+                <span :class="['level-badge', getLevelColor(currentCard.n_level)]">
+                  N{{ currentCard.n_level }}
+                </span>
+              </div>
             </div>
 
             <!-- Meaning -->
@@ -464,9 +556,19 @@ onUnmounted(() => {
                 <span class="kanji" v-if="item.kanji">{{ item.kanji }}</span>
                 <span class="kana" v-if="item.kana">{{ item.kana }}</span>
               </div>
-              <span :class="['level-badge', getLevelColor(item.n_level)]">
-                N{{ item.n_level }}
-              </span>
+              <div class="card-header-right">
+                <button 
+                  @click="toggleFavorite(item.no)"
+                  class="favorite-btn"
+                  :class="{ active: isFavorite(item.no) }"
+                  :title="isFavorite(item.no) ? 'Remove from favorites' : 'Add to favorites'"
+                >
+                  {{ isFavorite(item.no) ? '⭐' : '☆' }}
+                </button>
+                <span :class="['level-badge', getLevelColor(item.n_level)]">
+                  N{{ item.n_level }}
+                </span>
+              </div>
             </div>
 
             <!-- Meaning -->
@@ -893,6 +995,30 @@ onUnmounted(() => {
   transform: translateY(-1px) scale(1.05);
 }
 
+/* Favorites Toggle Button */
+.favorites-toggle {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 25px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: rgba(255, 255, 255, 0.9);
+  color: #2c3e50;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.favorites-toggle:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+.favorites-toggle.active {
+  background: linear-gradient(135deg, #f39c12, #e67e22);
+  color: white;
+}
+
 /* Flashcard Toggle Button */
 .flashcard-toggle {
   padding: 0.75rem 1.5rem;
@@ -915,6 +1041,49 @@ onUnmounted(() => {
 .flashcard-toggle.active {
   background: linear-gradient(135deg, #e74c3c, #c0392b);
   color: white;
+}
+
+/* Card Header Right */
+.card-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Favorite Button */
+.favorite-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  padding: 0.25rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.favorite-btn:hover {
+  background: rgba(255, 193, 7, 0.1);
+  transform: scale(1.1);
+}
+
+.favorite-btn.active {
+  color: #ffc107;
+  animation: favoriteAdded 0.3s ease;
+}
+
+.favorite-btn:not(.active) {
+  color: #bdc3c7;
+}
+
+@keyframes favoriteAdded {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.3); }
+  100% { transform: scale(1); }
 }
 
 /* Flashcard Container */
