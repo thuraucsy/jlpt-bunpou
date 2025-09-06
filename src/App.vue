@@ -358,7 +358,7 @@ onUnmounted(() => {
   <div class="app">
     <header class="header">
       <h1>🇯🇵 JLPT Grammar Guide</h1>
-      <p class="subtitle">Japanese Language Proficiency Test <br/>Grammar Points</p>
+      <p class="subtitle">Grammar Points <br/>for the Japanese Language Proficiency Test</p>
     </header>
 
     <div class="container">
@@ -713,7 +713,8 @@ onUnmounted(() => {
 .search-box {
   position: relative;
   flex: 1;
-  min-width: 300px;
+  min-width: 200px;
+  max-width: none;
 }
 
 .search-input {
@@ -1031,6 +1032,9 @@ onUnmounted(() => {
   background: rgba(255, 255, 255, 0.9);
   color: #2c3e50;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+  white-space: nowrap;
+  margin-left: 50px;
 }
 
 .flashcard-toggle:hover {
@@ -1237,6 +1241,35 @@ onUnmounted(() => {
   backdrop-filter: blur(10px);
 }
 
+/* Medium screens - adjust layout before mobile breakpoint */
+@media (max-width: 1024px) {
+  .search-box {
+    min-width: 180px;
+  }
+  
+  .flashcard-toggle {
+    padding: 0.6rem 0.8rem;
+    font-size: 0.85rem;
+  }
+}
+
+/* Small desktop screens - prevent wrapping */
+@media (max-width: 900px) and (min-width: 769px) {
+  .search-box {
+    min-width: 150px;
+  }
+  
+  .flashcard-toggle {
+    padding: 0.5rem 0.7rem;
+    font-size: 0.8rem;
+  }
+  
+  .level-select {
+    padding: 0.4rem;
+    font-size: 0.9rem;
+  }
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .header h1 {
@@ -1251,10 +1284,12 @@ onUnmounted(() => {
     flex-direction: column;
     align-items: stretch;
     padding: 0 0.5rem;
+    flex-wrap: wrap;
   }
   
   .search-box {
     min-width: auto;
+    max-width: none;
     width: 100%;
   }
   
@@ -1266,6 +1301,11 @@ onUnmounted(() => {
   
   .level-filter {
     justify-content: center;
+  }
+  
+  /* Remove left margin on mobile */
+  .flashcard-toggle {
+    margin-left: 0;
   }
   
   .grammar-list {
