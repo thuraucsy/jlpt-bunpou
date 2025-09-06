@@ -72,6 +72,33 @@ const clearSearch = () => {
   searchTerm.value = ''
 }
 
+// Parse examples to separate multiple examples and JP/MM parts
+const parseExamples = (exampleText) => {
+  if (!exampleText) return []
+  
+  // Split by Myanmar end character "။"
+  const examples = exampleText.split('။').filter(example => example.trim())
+  
+  return examples.map(example => {
+    const trimmedExample = example.trim()
+    // Split by Japanese period "。" to separate JP and MM
+    const parts = trimmedExample.split('。')
+    
+    if (parts.length >= 2) {
+      return {
+        japanese: parts[0].trim() + '。', // Add back the Japanese period
+        myanmar: parts.slice(1).join('。').trim() // Join remaining parts as Myanmar
+      }
+    } else {
+      // If no Japanese period found, treat the whole thing as one example
+      return {
+        japanese: trimmedExample,
+        myanmar: ''
+      }
+    }
+  })
+}
+
 // Load data on component mount
 onMounted(() => {
   loadGrammarData()
@@ -164,8 +191,15 @@ onMounted(() => {
             <!-- Examples -->
             <div class="examples" v-if="item.tmp_example">
               <strong>Examples:</strong>
-              <div class="example-text">
-                {{ item.tmp_example }}
+              <div class="parsed-examples">
+                <div 
+                  v-for="(example, index) in parseExamples(item.tmp_example)" 
+                  :key="index"
+                  class="example-item"
+                >
+                  <div class="japanese-text">{{ example.japanese }}</div>
+                  <div class="myanmar-text" v-if="example.myanmar">{{ example.myanmar }}</div>
+                </div>
               </div>
             </div>
 
@@ -189,7 +223,7 @@ onMounted(() => {
 <style scoped>
 .app {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #74b9ff 0%, #0984e3 50%, #00b894 100%);
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
@@ -412,6 +446,34 @@ onMounted(() => {
   line-height: 1.7;
 }
 
+.parsed-examples {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.example-item {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 8px;
+  border-left: 4px solid #3498db;
+}
+
+.japanese-text {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #2c3e50;
+  margin-bottom: 0.5rem;
+  line-height: 1.6;
+}
+
+.myanmar-text {
+  font-size: 0.95rem;
+  color: #7f8c8d;
+  line-height: 1.7;
+  font-style: italic;
+}
+
 .sensei-note {
   background: #fff3cd;
   padding: 1rem;
@@ -437,16 +499,24 @@ onMounted(() => {
   }
   
   .container {
-    padding: 1rem;
+    padding: 1rem 0.5rem;
   }
   
   .filters {
     flex-direction: column;
     align-items: stretch;
+    padding: 0 0.5rem;
   }
   
   .search-box {
     min-width: auto;
+    width: 100%;
+  }
+  
+  .search-input {
+    width: calc(100% - 1rem);
+    min-width: 0;
+    box-sizing: border-box;
   }
   
   .level-filter {
@@ -455,6 +525,7 @@ onMounted(() => {
   
   .grammar-list {
     grid-template-columns: 1fr;
+    padding: 0 0.5rem;
   }
   
   .grammar-card {
@@ -464,6 +535,30 @@ onMounted(() => {
   .card-header {
     flex-direction: column;
     gap: 1rem;
+  }
+}
+
+/* Extra small screens */
+@media (max-width: 480px) {
+  .container {
+    padding: 1rem 0.25rem;
+  }
+  
+  .filters {
+    padding: 0 0.25rem;
+  }
+  
+  .search-input {
+    width: calc(100% - 0.5rem);
+    padding: 0.75rem 2.5rem 0.75rem 0.75rem;
+  }
+  
+  .grammar-list {
+    padding: 0 0.25rem;
+  }
+  
+  .grammar-card {
+    padding: 0.75rem;
   }
 }
 </style>
