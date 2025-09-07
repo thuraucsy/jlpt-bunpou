@@ -393,18 +393,26 @@ const getStackedCards = () => {
 
 // Get styling for stacked cards with decreasing overlap
 const getStackedCardStyle = (index) => {
-  const baseOffset = 8 // Base offset in pixels
-  const scaleReduction = 0.02 // Scale reduction per card
-  const opacityReduction = 0.15 // Opacity reduction per card
-  const rotationVariation = 2 // Slight rotation variation
+  // Check if we're on mobile (screen width < 768px)
+  const isMobile = window.innerWidth < 768
+  const isExtraSmall = window.innerWidth < 480
+  
+  // Adjust values based on screen size
+  const baseOffset = isExtraSmall ? 4 : isMobile ? 6 : 8 // Smaller offset on mobile
+  const scaleReduction = isExtraSmall ? 0.015 : isMobile ? 0.018 : 0.02 // Less scale reduction on mobile
+  const opacityReduction = 0.15 // Keep opacity reduction consistent
+  const rotationVariation = isExtraSmall ? 1 : isMobile ? 1.5 : 2 // Less rotation on mobile
   
   const offset = baseOffset * (index + 1)
   const scale = 1 - (scaleReduction * (index + 1))
   const opacity = 1 - (opacityReduction * (index + 1))
   const rotation = (index % 2 === 0 ? 1 : -1) * rotationVariation * (index + 1)
   
+  // Reduce horizontal translation on mobile to prevent overflow
+  const horizontalOffset = isMobile ? offset / 4 : offset / 2
+  
   return {
-    transform: `translateY(${offset}px) translateX(${offset / 2}px) scale(${scale}) rotate(${rotation}deg)`,
+    transform: `translateY(${offset}px) translateX(${horizontalOffset}px) scale(${scale}) rotate(${rotation}deg)`,
     opacity: opacity,
     zIndex: 10 - (index + 1)
   }
@@ -620,12 +628,12 @@ onUnmounted(() => {
 
           <!-- Mobile Swipe Info -->
           <div class="mobile-swipe-info">
-            <div class="swipe-counter">
+            <!-- <div class="swipe-counter">
               {{ currentCardIndex + 1 }} / {{ filteredGrammar.length }}
-            </div>
+            </div> -->
             <div class="swipe-instructions">
               <span class="swipe-icon">👈</span>
-              <span class="swipe-text">Swipe to navigate</span>
+              <span class="swipe-text">Swipe over Flashcard to navigate</span>
               <span class="swipe-icon">👉</span>
             </div>
           </div>
@@ -1383,6 +1391,9 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   perspective: 1000px;
+  overflow: hidden; /* Prevent cards from overflowing */
+  padding: 20px; /* Add padding to contain stacked cards */
+  box-sizing: border-box;
 }
 
 /* Single Flashcard */
@@ -1394,12 +1405,13 @@ onUnmounted(() => {
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
   position: absolute;
-  width: 100%;
-  max-width: 750px;
+  width: calc(100% - 40px); /* Account for container padding */
+  max-width: 710px; /* Reduced to fit within container */
   min-height: 450px;
   padding-top: 2.5rem;
   color: #2c3e50;
   overflow: visible;
+  box-sizing: border-box;
 }
 
 /* Active Flashcard (front card) */
@@ -1616,11 +1628,20 @@ onUnmounted(() => {
     min-width: 80px;
   }
   
+  /* Mobile flashcard stack adjustments */
+  .flashcard-stack {
+    max-width: 100%;
+    min-height: 400px;
+    padding: 15px;
+    overflow: hidden;
+  }
+  
   .flashcard {
     padding: 1.5rem;
     padding-top: 2.5rem;
     min-height: 350px;
-    max-width: 100%;
+    width: calc(100% - 30px);
+    max-width: calc(100% - 30px);
     margin: 0;
   }
   
@@ -1656,7 +1677,7 @@ onUnmounted(() => {
     padding: 0.75rem;
   }
 
-  /* Extra small flashcard adjustments - behave like list view */
+  /* Extra small flashcard adjustments */
   .flashcard-container {
     padding: 0 0.25rem;
     gap: 0.75rem;
@@ -1685,13 +1706,21 @@ onUnmounted(() => {
     font-size: 0.85rem;
   }
   
+  /* Extra small flashcard stack - more constrained */
+  .flashcard-stack {
+    max-width: 100%;
+    min-height: 320px;
+    padding: 10px;
+    overflow: hidden;
+  }
+  
   .flashcard {
     padding: 0.75rem;
     padding-top: 1.75rem;
     min-height: 280px;
     border-radius: 12px;
-    width: 100%;
-    max-width: 100%;
+    width: calc(100% - 20px);
+    max-width: calc(100% - 20px);
     margin: 0;
     box-sizing: border-box;
   }
