@@ -453,6 +453,65 @@ const handleTouchEnd = (event) => {
   }
 }
 
+// Audio playback functionality
+const currentAudio = ref(null)
+const audioError = ref(null)
+const showAudioError = ref(false)
+
+const playExampleAudio = (grammarNo, exampleIndex) => {
+  try {
+    // Stop any currently playing audio
+    if (currentAudio.value) {
+      currentAudio.value.pause()
+      currentAudio.value.currentTime = 0
+    }
+    
+    // Generate the correct audio file path
+    const audioPath = `/voices/example-${grammarNo}/${exampleIndex + 1}.mp3`
+    
+    // Create and play new audio
+    const audio = new Audio(audioPath)
+    currentAudio.value = audio
+    
+    // Clean up reference when audio ends or errors
+    audio.addEventListener('ended', () => {
+      currentAudio.value = null
+    })
+    
+    audio.addEventListener('error', (error) => {
+      console.warn(`Audio playback failed for ${audioPath}:`, error)
+      currentAudio.value = null
+      showAudioErrorMessage('Audio file not available. This feature requires an internet connection or pre-downloaded audio files.')
+    })
+    
+    audio.play().catch(error => {
+      console.warn(`Audio playback failed for ${audioPath}:`, error)
+      currentAudio.value = null
+      showAudioErrorMessage('Audio playback failed. Please check your internet connection or try again later.')
+    })
+  } catch (error) {
+    console.warn('Audio creation failed:', error)
+    currentAudio.value = null
+    showAudioErrorMessage('Audio feature is not available. Please check your browser settings or internet connection.')
+  }
+}
+
+const showAudioErrorMessage = (message) => {
+  audioError.value = message
+  showAudioError.value = true
+  
+  // Auto-hide error after 3 seconds
+  setTimeout(() => {
+    showAudioError.value = false
+    audioError.value = null
+  }, 3000)
+}
+
+const hideAudioError = () => {
+  showAudioError.value = false
+  audioError.value = null
+}
+
 // Keyboard navigation for flashcard mode
 const handleKeydown = (event) => {
   if (!isFlashcardMode.value) return
@@ -719,7 +778,16 @@ onUnmounted(() => {
                     :key="index"
                     class="example-item"
                   >
-                    <div class="japanese-text" v-html="example.japanese"></div>
+                    <div class="japanese-text-container">
+                      <div class="japanese-text" v-html="example.japanese"></div>
+                      <button 
+                        @click="playExampleAudio(currentCard.no, index)"
+                        class="audio-play-btn"
+                        title="Play audio"
+                      >
+                        🔊
+                      </button>
+                    </div>
                     <div class="myanmar-text" v-if="example.myanmar">{{ example.myanmar }}</div>
                   </div>
                 </div>
@@ -790,7 +858,16 @@ onUnmounted(() => {
                   :key="index"
                   class="example-item"
                 >
-                  <div class="japanese-text" v-html="example.japanese"></div>
+                  <div class="japanese-text-container">
+                    <div class="japanese-text" v-html="example.japanese"></div>
+                    <button 
+                      @click="playExampleAudio(item.no, index)"
+                      class="audio-play-btn"
+                      title="Play audio"
+                    >
+                      🔊
+                    </button>
+                  </div>
                   <div class="myanmar-text" v-if="example.myanmar">{{ example.myanmar }}</div>
                 </div>
               </div>
@@ -803,6 +880,19 @@ onUnmounted(() => {
           <h3>🔍 No Results Found</h3>
           <p>Try adjusting your search terms or filter settings.</p>
         </div>
+      </div>
+    </div>
+
+    <!-- Audio Error Notification -->
+    <div 
+      v-if="showAudioError" 
+      class="audio-error-notification"
+      @click="hideAudioError"
+    >
+      <div class="audio-error-content">
+        <span class="audio-error-icon">🔇</span>
+        <span class="audio-error-message">{{ audioError }}</span>
+        <button class="audio-error-close" @click="hideAudioError">✕</button>
       </div>
     </div>
 
@@ -1084,12 +1174,49 @@ onUnmounted(() => {
   border-left: 4px solid #3498db;
 }
 
+/* Japanese text container with audio button */
+.japanese-text-container {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
 .japanese-text {
   font-size: 1rem;
   font-weight: 600;
   color: #2c3e50;
-  margin-bottom: 0.5rem;
   line-height: 1.6;
+  flex: 1;
+}
+
+/* Audio play button */
+.audio-play-btn {
+  background: linear-gradient(135deg, #27ae60, #2ecc71);
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: white;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(39, 174, 96, 0.3);
+  flex-shrink: 0;
+}
+
+.audio-play-btn:hover {
+  transform: translateY(-2px) scale(1.1);
+  box-shadow: 0 4px 12px rgba(39, 174, 96, 0.4);
+  background: linear-gradient(135deg, #2ecc71, #27ae60);
+}
+
+.audio-play-btn:active {
+  transform: translateY(0) scale(1.05);
+  box-shadow: 0 2px 6px rgba(39, 174, 96, 0.3);
 }
 
 .myanmar-text {
@@ -1916,6 +2043,132 @@ onUnmounted(() => {
 .app.dark-mode .back-to-top:hover {
   background: linear-gradient(135deg, #357abd, #4a9eff);
   box-shadow: 0 6px 20px rgba(74, 158, 255, 0.4);
+}
+
+.app.dark-mode .audio-play-btn {
+  background: linear-gradient(135deg, #2ecc71, #27ae60);
+  box-shadow: 0 2px 8px rgba(46, 204, 113, 0.3);
+}
+
+.app.dark-mode .audio-play-btn:hover {
+  background: linear-gradient(135deg, #27ae60, #2ecc71);
+  box-shadow: 0 4px 12px rgba(46, 204, 113, 0.4);
+}
+
+.app.dark-mode .audio-play-btn:active {
+  box-shadow: 0 2px 6px rgba(46, 204, 113, 0.3);
+}
+
+/* Audio Error Notification */
+.audio-error-notification {
+  position: fixed;
+  top: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2000;
+  cursor: pointer;
+  animation: slideInDown 0.3s ease-out;
+}
+
+.audio-error-content {
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  color: white;
+  padding: 1rem 1.5rem;
+  border-radius: 10px;
+  box-shadow: 0 8px 25px rgba(231, 76, 60, 0.4);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  max-width: 400px;
+  min-width: 300px;
+}
+
+.audio-error-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.audio-error-message {
+  flex: 1;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.audio-error-close {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 50%;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.audio-error-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+}
+
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Dark mode audio error notification */
+.app.dark-mode .audio-error-content {
+  background: linear-gradient(135deg, #c0392b, #a93226);
+  box-shadow: 0 8px 25px rgba(192, 57, 43, 0.4);
+}
+
+/* Responsive audio error notification */
+@media (max-width: 768px) {
+  .audio-error-notification {
+    top: 1rem;
+    left: 1rem;
+    right: 1rem;
+    transform: none;
+  }
+  
+  .audio-error-content {
+    min-width: auto;
+    max-width: none;
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .audio-error-notification {
+    top: 0.5rem;
+    left: 0.5rem;
+    right: 0.5rem;
+  }
+  
+  .audio-error-content {
+    padding: 0.75rem 1rem;
+    gap: 0.75rem;
+  }
+  
+  .audio-error-message {
+    font-size: 0.85rem;
+  }
+  
+  .audio-error-icon {
+    font-size: 1.3rem;
+  }
 }
 
 /* Dark mode responsive adjustments */
