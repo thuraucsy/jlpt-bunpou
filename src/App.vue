@@ -376,6 +376,40 @@ const currentCard = computed(() => {
   return filteredGrammar.value[currentCardIndex.value] || null
 })
 
+// Get stacked cards (next 3 cards behind current card)
+const getStackedCards = () => {
+  const stackSize = 3
+  const cards = []
+  
+  for (let i = 1; i <= stackSize; i++) {
+    const nextIndex = currentCardIndex.value + i
+    if (nextIndex < filteredGrammar.value.length) {
+      cards.push(filteredGrammar.value[nextIndex])
+    }
+  }
+  
+  return cards
+}
+
+// Get styling for stacked cards with decreasing overlap
+const getStackedCardStyle = (index) => {
+  const baseOffset = 8 // Base offset in pixels
+  const scaleReduction = 0.02 // Scale reduction per card
+  const opacityReduction = 0.15 // Opacity reduction per card
+  const rotationVariation = 2 // Slight rotation variation
+  
+  const offset = baseOffset * (index + 1)
+  const scale = 1 - (scaleReduction * (index + 1))
+  const opacity = 1 - (opacityReduction * (index + 1))
+  const rotation = (index % 2 === 0 ? 1 : -1) * rotationVariation * (index + 1)
+  
+  return {
+    transform: `translateY(${offset}px) translateX(${offset / 2}px) scale(${scale}) rotate(${rotation}deg)`,
+    opacity: opacity,
+    zIndex: 10 - (index + 1)
+  }
+}
+
 // Touch/swipe event handlers for mobile flashcards
 const handleTouchStart = (event) => {
   if (!isFlashcardMode.value || isSwipeAnimating.value) return
@@ -596,64 +630,90 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- Single Flashcard -->
-          <div 
-            class="flashcard"
-            @touchstart="handleTouchStart"
-            @touchend="handleTouchEnd"
-            :class="{ 'swipe-animating': isSwipeAnimating }"
-          >
-            <!-- Grammar Number at Top Right -->
-            <div class="grammar-number-top">{{ currentCardIndex + 1 }}</div>
-            
-            <!-- Header -->
-            <div class="card-header">
-              <div class="grammar-title">
-                <span class="kanji" v-if="currentCard.kanji">{{ currentCard.kanji }}</span>
-                <span class="kana" v-if="currentCard.kana">{{ currentCard.kana }}</span>
-              </div>
-              <div class="card-header-right">
-                <button 
-                  @click="toggleFavorite(currentCard.no)"
-                  class="favorite-btn"
-                  :class="{ active: isFavorite(currentCard.no) }"
-                  :title="isFavorite(currentCard.no) ? 'Remove from favorites' : 'Add to favorites'"
-                >
-                  {{ isFavorite(currentCard.no) ? '⭐' : '☆' }}
-                </button>
-                <span :class="['level-badge', getLevelColor(currentCard.n_level)]">
-                  N{{ currentCard.n_level }}
-                </span>
+          <!-- Stacked Flashcards -->
+          <div class="flashcard-stack" 
+               @touchstart="handleTouchStart"
+               @touchend="handleTouchEnd">
+            <!-- Background Cards (Next 3 cards) -->
+            <div 
+              v-for="(card, index) in getStackedCards()" 
+              :key="`stacked-${card.no}-${index}`"
+              class="flashcard flashcard-stacked"
+              :class="{ 'swipe-animating': isSwipeAnimating }"
+              :style="getStackedCardStyle(index)"
+            >
+              <!-- Simplified content for background cards -->
+              <div class="grammar-number-top">{{ currentCardIndex + index + 2 }}</div>
+              <div class="card-header">
+                <div class="grammar-title">
+                  <span class="kanji" v-if="card.kanji">{{ card.kanji }}</span>
+                  <span class="kana" v-if="card.kana">{{ card.kana }}</span>
+                </div>
+                <div class="card-header-right">
+                  <span :class="['level-badge', getLevelColor(card.n_level)]">
+                    N{{ card.n_level }}
+                  </span>
+                </div>
               </div>
             </div>
 
-            <!-- Meaning -->
-            <div class="meaning">
-              <strong>Meaning:</strong> {{ currentCard.meaning_mm }}
-            </div>
+            <!-- Current Active Card -->
+            <div 
+              class="flashcard flashcard-active"
+              :class="{ 'swipe-animating': isSwipeAnimating }"
+            >
+              <!-- Grammar Number at Top Right -->
+              <div class="grammar-number-top">{{ currentCardIndex + 1 }}</div>
+              
+              <!-- Header -->
+              <div class="card-header">
+                <div class="grammar-title">
+                  <span class="kanji" v-if="currentCard.kanji">{{ currentCard.kanji }}</span>
+                  <span class="kana" v-if="currentCard.kana">{{ currentCard.kana }}</span>
+                </div>
+                <div class="card-header-right">
+                  <button 
+                    @click="toggleFavorite(currentCard.no)"
+                    class="favorite-btn"
+                    :class="{ active: isFavorite(currentCard.no) }"
+                    :title="isFavorite(currentCard.no) ? 'Remove from favorites' : 'Add to favorites'"
+                  >
+                    {{ isFavorite(currentCard.no) ? '⭐' : '☆' }}
+                  </button>
+                  <span :class="['level-badge', getLevelColor(currentCard.n_level)]">
+                    N{{ currentCard.n_level }}
+                  </span>
+                </div>
+              </div>
 
-            <!-- Usage Pattern -->
-            <div class="usage" v-if="currentCard.where_to_use">
-              <strong>Usage:</strong> 
-              <code>{{ currentCard.where_to_use }}</code>
-            </div>
+              <!-- Meaning -->
+              <div class="meaning">
+                <strong>Meaning:</strong> {{ currentCard.meaning_mm }}
+              </div>
 
-            <!-- Sensei Note -->
-            <div class="sensei-note" v-if="currentCard.sensei_note">
-              <strong>📝 Sensei Note:</strong> {{ currentCard.sensei_note }}
-            </div>
+              <!-- Usage Pattern -->
+              <div class="usage" v-if="currentCard.where_to_use">
+                <strong>Usage:</strong> 
+                <code>{{ currentCard.where_to_use }}</code>
+              </div>
 
-            <!-- Examples -->
-            <div class="examples" v-if="currentCard.tmp_example">
-              <strong>Examples:</strong>
-              <div class="parsed-examples">
-                <div 
-                  v-for="(example, index) in parseExamples(currentCard.tmp_example)" 
-                  :key="index"
-                  class="example-item"
-                >
-                  <div class="japanese-text" v-html="example.japanese"></div>
-                  <div class="myanmar-text" v-if="example.myanmar">{{ example.myanmar }}</div>
+              <!-- Sensei Note -->
+              <div class="sensei-note" v-if="currentCard.sensei_note">
+                <strong>📝 Sensei Note:</strong> {{ currentCard.sensei_note }}
+              </div>
+
+              <!-- Examples -->
+              <div class="examples" v-if="currentCard.tmp_example">
+                <strong>Examples:</strong>
+                <div class="parsed-examples">
+                  <div 
+                    v-for="(example, index) in parseExamples(currentCard.tmp_example)" 
+                    :key="index"
+                    class="example-item"
+                  >
+                    <div class="japanese-text" v-html="example.japanese"></div>
+                    <div class="myanmar-text" v-if="example.myanmar">{{ example.myanmar }}</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1313,36 +1373,113 @@ onUnmounted(() => {
   75% { transform: translateX(3px); }
 }
 
+/* Flashcard Stack Container */
+.flashcard-stack {
+  position: relative;
+  width: 100%;
+  max-width: 750px;
+  min-height: 500px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 1000px;
+}
+
 /* Single Flashcard */
 .flashcard {
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(10px);
-  border-radius: 20px;
-  padding: 2rem;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+  border-radius: 15px;
+  padding: 1.5rem;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
-  position: relative;
+  position: absolute;
   width: 100%;
-  max-width: 700px;
-  min-height: 400px;
-  padding-top: 3rem;
+  max-width: 750px;
+  min-height: 450px;
+  padding-top: 2.5rem;
+  color: #2c3e50;
+  overflow: visible;
+}
+
+/* Active Flashcard (front card) */
+.flashcard-active {
+  z-index: 20;
+  position: relative;
+}
+
+/* Stacked Flashcards (background cards) */
+.flashcard-stacked {
+  pointer-events: none;
+  cursor: default;
+}
+
+.flashcard-stacked .card-header {
+  margin-bottom: 2rem;
+}
+
+.flashcard-stacked .meaning,
+.flashcard-stacked .usage,
+.flashcard-stacked .examples,
+.flashcard-stacked .sensei-note {
+  display: none;
+}
+
+.flashcard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(45deg, 
+    rgba(255, 255, 255, 0.1) 0%, 
+    transparent 50%, 
+    rgba(255, 255, 255, 0.05) 100%);
+  pointer-events: none;
 }
 
 .flashcard:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  transform: translateY(-12px) rotateX(5deg);
+  box-shadow: 0 30px 80px rgba(102, 126, 234, 0.4), 
+              0 10px 30px rgba(118, 75, 162, 0.3),
+              inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
 .flashcard .grammar-number-top {
-  width: 40px;
-  height: 40px;
-  font-size: 1.1rem;
-  top: -15px;
-  right: -15px;
+  width: 50px;
+  height: 50px;
+  font-size: 1.3rem;
+  top: -20px;
+  right: -20px;
+  background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+  border: 4px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 25px rgba(255, 107, 107, 0.4);
 }
 
 .flashcard .kanji, .flashcard .kana {
-  font-size: 2rem;
+  font-size: 1.5rem;
+  color: #2c3e50;
+  font-weight: 700;
+}
+
+.flashcard .grammar-number-top {
+  width: 32px;
+  height: 32px;
+  font-size: 0.9rem;
+  top: -12px;
+  right: -12px;
+  background: linear-gradient(135deg, #3498db, #2980b9);
+  border: 3px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+}
+
+.flashcard .favorite-btn:not(.active) {
+  color: #bdc3c7;
+}
+
+.flashcard .favorite-btn.active {
+  color: #ffc107;
 }
 
 /* Swipe Animation */
