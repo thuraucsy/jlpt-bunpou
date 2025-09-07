@@ -552,7 +552,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Results Summary -->
-        <div v-else class="results-summary">
+        <div v-else-if="searchTerm" class="results-summary">
           <p>
             Showing <strong>{{ filteredGrammar.length }}</strong> 
             of <strong>{{ grammarData.length }}</strong> grammar points
