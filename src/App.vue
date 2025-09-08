@@ -355,6 +355,10 @@ const scrollToTop = () => {
 // Flashcard navigation functions
 const toggleFlashcardMode = async () => {
   modeLoading.value = true
+  // Stop auto-advance when exiting flashcard mode
+  if (isFlashcardMode.value) {
+    stopAutoAdvance()
+  }
   // Add a small delay to show loading state
   await new Promise(resolve => setTimeout(resolve, 400))
   isFlashcardMode.value = !isFlashcardMode.value
@@ -365,6 +369,9 @@ const toggleFlashcardMode = async () => {
 const nextCard = () => {
   if (currentCardIndex.value < filteredGrammar.value.length - 1) {
     currentCardIndex.value++
+  } else if (isAutoAdvancing.value) {
+    // If auto-advancing and reached the end, stop
+    stopAutoAdvance()
   }
 }
 
@@ -372,11 +379,19 @@ const prevCard = () => {
   if (currentCardIndex.value > 0) {
     currentCardIndex.value--
   }
+  // Stop auto-advance when manually going back
+  if (isAutoAdvancing.value) {
+    stopAutoAdvance()
+  }
 }
 
 const goToCard = (index) => {
   if (index >= 0 && index < filteredGrammar.value.length) {
     currentCardIndex.value = index
+  }
+  // Stop auto-advance when manually navigating
+  if (isAutoAdvancing.value) {
+    stopAutoAdvance()
   }
 }
 
@@ -502,6 +517,11 @@ const isPlayingAll = ref(false)
 const currentPlayingGrammar = ref(null)
 const playAllQueue = ref([])
 const currentQueueIndex = ref(0)
+
+// Auto-advance flashcard functionality
+const isAutoAdvancing = ref(false)
+const autoAdvanceInterval = ref(null)
+const autoAdvanceDelay = ref(3000) // 3 seconds between cards
 
 const playExampleAudio = (grammarNo, exampleIndex) => {
   try {
@@ -676,6 +696,186 @@ const stopPlayingAll = () => {
 // Check if currently playing all examples for a specific grammar
 const isPlayingAllForGrammar = (grammarNo) => {
   return isPlayingAll.value && currentPlayingGrammar.value === grammarNo
+}
+
+// Play all examples with callback functionality for auto-advance
+const playAllExamplesWithCallback = (grammarNo, examples, onComplete) => {
+  try {
+    // Stop any currently playing audio
+    if (currentAudio.value) {
+      currentAudio.value.pause()
+      currentAudio.value.currentTime = 0
+    }
+    
+    // Stop any currently playing "play all" sequence
+    if (isPlayingAll.value) {
+      stopPlayingAll()
+    }
+    
+    // Set up the queue for playing all examples
+    playAllQueue.value = examples.map((_, index) => ({
+      grammarNo,
+      exampleIndex: index,
+      audioPath: `/voices/example-${grammarNo}/${index + 1}.mp3`
+    }))
+    
+    currentQueueIndex.value = 0
+    isPlayingAll.value = true
+    currentPlayingGrammar.value = grammarNo
+    
+    // Store the completion callback
+    const completionCallback = onComplete
+    
+    // Start playing the first audio with callback support
+    playNextInQueueWithCallback(completionCallback)
+    
+  } catch (error) {
+    console.warn('Play all examples with callback failed:', error)
+    stopPlayingAll()
+    // Call the completion callback even on error
+    if (onComplete) {
+      onComplete()
+    }
+    showAudioErrorMessage('Play all feature is not available. Please check your browser settings or internet connection.')
+  }
+}
+
+const playNextInQueueWithCallback = (onComplete) => {
+  if (currentQueueIndex.value >= playAllQueue.value.length) {
+    // Finished playing all examples
+    stopPlayingAll()
+    // Call the completion callback
+    if (onComplete) {
+      onComplete()
+    }
+    return
+  }
+  
+  const currentItem = playAllQueue.value[currentQueueIndex.value]
+  
+  try {
+    // Create and play audio
+    const audio = new Audio(currentItem.audioPath)
+    currentAudio.value = audio
+    
+    // When audio ends, play next in queue
+    audio.addEventListener('ended', () => {
+      currentAudio.value = null
+      currentQueueIndex.value++
+      
+      // Add a small delay between examples for better UX
+      setTimeout(() => {
+        if (isPlayingAll.value) {
+          playNextInQueueWithCallback(onComplete)
+        }
+      }, 500)
+    })
+    
+    audio.addEventListener('error', (error) => {
+      console.warn(`Audio playback failed for ${currentItem.audioPath}:`, error)
+      currentAudio.value = null
+      
+      // Skip to next audio on error
+      currentQueueIndex.value++
+      setTimeout(() => {
+        if (isPlayingAll.value) {
+          playNextInQueueWithCallback(onComplete)
+        }
+      }, 100)
+    })
+    
+    audio.play().catch(error => {
+      console.warn(`Audio playback failed for ${currentItem.audioPath}:`, error)
+      currentAudio.value = null
+      
+      // Skip to next audio on error
+      currentQueueIndex.value++
+      setTimeout(() => {
+        if (isPlayingAll.value) {
+          playNextInQueueWithCallback(onComplete)
+        }
+      }, 100)
+    })
+    
+  } catch (error) {
+    console.warn('Audio creation failed:', error)
+    currentAudio.value = null
+    
+    // Skip to next audio on error
+    currentQueueIndex.value++
+    setTimeout(() => {
+      if (isPlayingAll.value) {
+        playNextInQueueWithCallback(onComplete)
+      }
+    }, 100)
+  }
+}
+
+// Auto-advance flashcard functions
+const startAutoAdvance = () => {
+  if (isAutoAdvancing.value || !isFlashcardMode.value) return
+  
+  isAutoAdvancing.value = true
+  
+  const advanceToNext = () => {
+    if (!isAutoAdvancing.value) return
+    
+    if (currentCardIndex.value < filteredGrammar.value.length - 1) {
+      nextCard()
+      
+      // Play audio for the new current card and wait for completion
+      const newCurrentCard = filteredGrammar.value[currentCardIndex.value]
+      if (newCurrentCard && newCurrentCard.tmp_example) {
+        // Add a small delay before playing audio to let the card transition
+        setTimeout(() => {
+          if (isAutoAdvancing.value) {
+            playAllExamplesWithCallback(newCurrentCard.no, parseExamples(newCurrentCard.tmp_example), () => {
+              // Schedule next advance after audio completes
+              if (isAutoAdvancing.value) {
+                autoAdvanceInterval.value = setTimeout(advanceToNext, 1000) // 1 second pause after audio
+              }
+            })
+          }
+        }, 500)
+      } else {
+        // No audio, advance after standard delay
+        autoAdvanceInterval.value = setTimeout(advanceToNext, autoAdvanceDelay.value)
+      }
+    } else {
+      // Reached the end, stop auto-advance
+      stopAutoAdvance()
+    }
+  }
+  
+  // Play audio for current card when starting and wait for completion
+  const currentCardData = filteredGrammar.value[currentCardIndex.value]
+  if (currentCardData && currentCardData.tmp_example) {
+    playAllExamplesWithCallback(currentCardData.no, parseExamples(currentCardData.tmp_example), () => {
+      // Start advancing after initial audio completes
+      if (isAutoAdvancing.value) {
+        autoAdvanceInterval.value = setTimeout(advanceToNext, 1000) // 1 second pause after audio
+      }
+    })
+  } else {
+    // No audio, start advancing after standard delay
+    autoAdvanceInterval.value = setTimeout(advanceToNext, autoAdvanceDelay.value)
+  }
+}
+
+const stopAutoAdvance = () => {
+  isAutoAdvancing.value = false
+  if (autoAdvanceInterval.value) {
+    clearTimeout(autoAdvanceInterval.value)
+    autoAdvanceInterval.value = null
+  }
+}
+
+const toggleAutoAdvance = () => {
+  if (isAutoAdvancing.value) {
+    stopAutoAdvance()
+  } else {
+    startAutoAdvance()
+  }
 }
 
 // Keyboard navigation for flashcard mode
@@ -904,6 +1104,15 @@ onUnmounted(() => {
                 title="Reset to original order"
               >
                 ↩️ Reset
+              </button>
+              <button 
+                @click="toggleAutoAdvance"
+                class="auto-advance-btn"
+                :class="{ active: isAutoAdvancing }"
+                :disabled="filteredGrammar.length === 0"
+                :title="isAutoAdvancing ? 'Stop auto-advance' : 'Auto-advance through all flashcards'"
+              >
+                {{ isAutoAdvancing ? '⏹️ Stop' : '▶️ Play All' }}
               </button>
             </div>
           </div>
@@ -2076,7 +2285,7 @@ onUnmounted(() => {
   margin-top: 0.5rem;
 }
 
-.shuffle-btn, .reset-shuffle-btn {
+.shuffle-btn, .reset-shuffle-btn, .auto-advance-btn {
   padding: 0.6rem 1.2rem;
   border: none;
   border-radius: 20px;
@@ -2094,12 +2303,12 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-.shuffle-btn:hover:not(:disabled), .reset-shuffle-btn:hover {
+.shuffle-btn:hover:not(:disabled), .reset-shuffle-btn:hover, .auto-advance-btn:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 5px 16px rgba(0, 0, 0, 0.15);
 }
 
-.shuffle-btn:disabled {
+.shuffle-btn:disabled, .auto-advance-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
@@ -2118,6 +2327,35 @@ onUnmounted(() => {
 
 .reset-shuffle-btn:hover {
   background: linear-gradient(135deg, #7f8c8d, #95a5a6);
+}
+
+.auto-advance-btn {
+  background: linear-gradient(135deg, #27ae60, #2ecc71);
+  color: white;
+}
+
+.auto-advance-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #2ecc71, #27ae60);
+}
+
+.auto-advance-btn.active {
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  animation: autoAdvanceActive 1.5s ease-in-out infinite;
+}
+
+.auto-advance-btn.active:hover {
+  background: linear-gradient(135deg, #c0392b, #e74c3c);
+}
+
+@keyframes autoAdvanceActive {
+  0%, 100% { 
+    box-shadow: 0 3px 12px rgba(231, 76, 60, 0.3);
+    transform: scale(1);
+  }
+  50% { 
+    box-shadow: 0 5px 20px rgba(231, 76, 60, 0.6);
+    transform: scale(1.02);
+  }
 }
 
 .shuffle-indicator {
