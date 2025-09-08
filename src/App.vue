@@ -304,8 +304,8 @@ const parseExamples = (exampleText) => {
     
     if (parts.length >= 2) {
       return {
-        japanese: convertToRuby(parts[0].trim() + '。'), // Add back the Japanese period and convert to ruby
-        myanmar: parts.slice(1).join('。').trim() // Join remaining parts as Myanmar
+        japanese: convertToRuby(parts.slice(0, -1).join('。') + '。'), // Add back the Japanese period and convert to ruby
+        myanmar: parts.slice(parts.length - 1).join('。').trim() // Join last parts as Myanmar
       }
     } else {
       // If no Japanese period found, treat the whole thing as one example
