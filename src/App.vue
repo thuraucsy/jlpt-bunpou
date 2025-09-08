@@ -498,6 +498,10 @@ const handleTouchEnd = (event) => {
 const currentAudio = ref(null)
 const audioError = ref(null)
 const showAudioError = ref(false)
+const isPlayingAll = ref(false)
+const currentPlayingGrammar = ref(null)
+const playAllQueue = ref([])
+const currentQueueIndex = ref(0)
 
 const playExampleAudio = (grammarNo, exampleIndex) => {
   try {
@@ -551,6 +555,127 @@ const showAudioErrorMessage = (message) => {
 const hideAudioError = () => {
   showAudioError.value = false
   audioError.value = null
+}
+
+// Play all examples functionality
+const playAllExamples = (grammarNo, examples) => {
+  try {
+    // Stop any currently playing audio
+    if (currentAudio.value) {
+      currentAudio.value.pause()
+      currentAudio.value.currentTime = 0
+    }
+    
+    // Stop any currently playing "play all" sequence
+    if (isPlayingAll.value) {
+      stopPlayingAll()
+      return
+    }
+    
+    // Set up the queue for playing all examples
+    playAllQueue.value = examples.map((_, index) => ({
+      grammarNo,
+      exampleIndex: index,
+      audioPath: `/voices/example-${grammarNo}/${index + 1}.mp3`
+    }))
+    
+    currentQueueIndex.value = 0
+    isPlayingAll.value = true
+    currentPlayingGrammar.value = grammarNo
+    
+    // Start playing the first audio
+    playNextInQueue()
+    
+  } catch (error) {
+    console.warn('Play all examples failed:', error)
+    stopPlayingAll()
+    showAudioErrorMessage('Play all feature is not available. Please check your browser settings or internet connection.')
+  }
+}
+
+const playNextInQueue = () => {
+  if (currentQueueIndex.value >= playAllQueue.value.length) {
+    // Finished playing all examples
+    stopPlayingAll()
+    return
+  }
+  
+  const currentItem = playAllQueue.value[currentQueueIndex.value]
+  
+  try {
+    // Create and play audio
+    const audio = new Audio(currentItem.audioPath)
+    currentAudio.value = audio
+    
+    // When audio ends, play next in queue
+    audio.addEventListener('ended', () => {
+      currentAudio.value = null
+      currentQueueIndex.value++
+      
+      // Add a small delay between examples for better UX
+      setTimeout(() => {
+        if (isPlayingAll.value) {
+          playNextInQueue()
+        }
+      }, 500)
+    })
+    
+    audio.addEventListener('error', (error) => {
+      console.warn(`Audio playback failed for ${currentItem.audioPath}:`, error)
+      currentAudio.value = null
+      
+      // Skip to next audio on error
+      currentQueueIndex.value++
+      setTimeout(() => {
+        if (isPlayingAll.value) {
+          playNextInQueue()
+        }
+      }, 100)
+    })
+    
+    audio.play().catch(error => {
+      console.warn(`Audio playback failed for ${currentItem.audioPath}:`, error)
+      currentAudio.value = null
+      
+      // Skip to next audio on error
+      currentQueueIndex.value++
+      setTimeout(() => {
+        if (isPlayingAll.value) {
+          playNextInQueue()
+        }
+      }, 100)
+    })
+    
+  } catch (error) {
+    console.warn('Audio creation failed:', error)
+    currentAudio.value = null
+    
+    // Skip to next audio on error
+    currentQueueIndex.value++
+    setTimeout(() => {
+      if (isPlayingAll.value) {
+        playNextInQueue()
+      }
+    }, 100)
+  }
+}
+
+const stopPlayingAll = () => {
+  isPlayingAll.value = false
+  currentPlayingGrammar.value = null
+  playAllQueue.value = []
+  currentQueueIndex.value = 0
+  
+  if (currentAudio.value) {
+    currentAudio.value.pause()
+    currentAudio.value.currentTime = 0
+    currentAudio.value = null
+  }
+}
+
+// Check if currently playing all examples for a specific grammar
+const isPlayingAllForGrammar = (grammarNo) => {
+  return isPlayingAll.value && currentPlayingGrammar.value === grammarNo
 }
 
 // Keyboard navigation for flashcard mode
@@ -869,7 +994,20 @@ onUnmounted(() => {
 
               <!-- Examples -->
               <div class="examples" v-if="currentCard.tmp_example">
-                <strong>Examples:</strong>
+                <div class="examples-header">
+                  <strong>Examples:</strong>
+                  <button 
+                    @click="playAllExamples(currentCard.no, parseExamples(currentCard.tmp_example))"
+                    class="play-all-btn"
+                    :class="{ 
+                      active: isPlayingAllForGrammar(currentCard.no),
+                      playing: isPlayingAllForGrammar(currentCard.no)
+                    }"
+                    :title="isPlayingAllForGrammar(currentCard.no) ? 'Stop playing all examples' : 'Play all examples'"
+                  >
+                    {{ isPlayingAllForGrammar(currentCard.no) ? '⏹️' : '🔊▶️' }}
+                  </button>
+                </div>
                 <div class="parsed-examples">
                   <div 
                     v-for="(example, index) in parseExamples(currentCard.tmp_example)" 
@@ -949,7 +1087,20 @@ onUnmounted(() => {
 
             <!-- Examples -->
             <div class="examples" v-if="item.tmp_example">
-              <strong>Examples:</strong>
+              <div class="examples-header">
+                <strong>Examples:</strong>
+                <button 
+                  @click="playAllExamples(item.no, parseExamples(item.tmp_example))"
+                  class="play-all-btn"
+                  :class="{ 
+                    active: isPlayingAllForGrammar(item.no),
+                    playing: isPlayingAllForGrammar(item.no)
+                  }"
+                  :title="isPlayingAllForGrammar(item.no) ? 'Stop playing all examples' : 'Play all examples'"
+                >
+                  {{ isPlayingAllForGrammar(item.no) ? '⏹️' : '🔊▶️' }}
+                </button>
+              </div>
               <div class="parsed-examples">
                 <div 
                   v-for="(example, index) in parseExamples(item.tmp_example)" 
@@ -1322,6 +1473,70 @@ onUnmounted(() => {
   color: #7f8c8d;
   line-height: 1.7;
   font-style: italic;
+}
+
+/* Examples header with play all button */
+.examples-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.examples-header strong {
+  margin-bottom: 0 !important;
+}
+
+/* Play all examples button */
+.play-all-btn {
+  background: linear-gradient(135deg, #f39c12, #e67e22);
+  border: none;
+  border-radius: 20px;
+  padding: 0.4rem 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: white;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(243, 156, 18, 0.3);
+  flex-shrink: 0;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.play-all-btn:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 4px 12px rgba(243, 156, 18, 0.4);
+  background: linear-gradient(135deg, #e67e22, #f39c12);
+}
+
+.play-all-btn:active {
+  transform: translateY(0) scale(1.02);
+  box-shadow: 0 2px 6px rgba(243, 156, 18, 0.3);
+}
+
+.play-all-btn.active,
+.play-all-btn.playing {
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  animation: playingPulse 1.5s ease-in-out infinite;
+}
+
+.play-all-btn.active:hover,
+.play-all-btn.playing:hover {
+  background: linear-gradient(135deg, #c0392b, #e74c3c);
+}
+
+@keyframes playingPulse {
+  0%, 100% { 
+    box-shadow: 0 2px 8px rgba(231, 76, 60, 0.3);
+    transform: scale(1);
+  }
+  50% { 
+    box-shadow: 0 4px 16px rgba(231, 76, 60, 0.6);
+    transform: scale(1.02);
+  }
 }
 
 /* Ruby/Furigana styles */
@@ -2483,6 +2698,31 @@ onUnmounted(() => {
 
 .app.dark-mode .audio-play-btn:active {
   box-shadow: 0 2px 6px rgba(46, 204, 113, 0.3);
+}
+
+/* Dark mode play all button */
+.app.dark-mode .play-all-btn {
+  background: linear-gradient(135deg, #f39c12, #e67e22);
+  box-shadow: 0 2px 8px rgba(243, 156, 18, 0.3);
+}
+
+.app.dark-mode .play-all-btn:hover {
+  background: linear-gradient(135deg, #e67e22, #f39c12);
+  box-shadow: 0 4px 12px rgba(243, 156, 18, 0.4);
+}
+
+.app.dark-mode .play-all-btn:active {
+  box-shadow: 0 2px 6px rgba(243, 156, 18, 0.3);
+}
+
+.app.dark-mode .play-all-btn.active,
+.app.dark-mode .play-all-btn.playing {
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+}
+
+.app.dark-mode .play-all-btn.active:hover,
+.app.dark-mode .play-all-btn.playing:hover {
+  background: linear-gradient(135deg, #c0392b, #e74c3c);
 }
 
 /* Audio Error Notification */
