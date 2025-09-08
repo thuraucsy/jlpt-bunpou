@@ -12,6 +12,8 @@ const showBackToTop = ref(false) // Show back to top button
 const isFlashcardMode = ref(false) // Toggle flashcard mode
 const currentCardIndex = ref(0) // Current flashcard index
 const modeLoading = ref(false) // Loading state for mode transitions
+const shuffledCards = ref([]) // Shuffled order of cards for flashcard mode
+const isShuffled = ref(false) // Track if cards are currently shuffled
 
 // Touch/swipe handling for mobile flashcards
 const touchStartX = ref(0)
@@ -198,6 +200,13 @@ const filteredGrammar = computed(() => {
     )
   }
 
+  // Return shuffled cards if shuffle is active, otherwise return filtered cards
+  if (isShuffled.value && shuffledCards.value.length > 0) {
+    // Make sure shuffled cards match current filter
+    const filteredIds = new Set(filtered.map(item => item.no))
+    return shuffledCards.value.filter(item => filteredIds.has(item.no))
+  }
+
   return filtered
 })
 
@@ -370,6 +379,38 @@ const goToCard = (index) => {
     currentCardIndex.value = index
   }
 }
+
+// Shuffle functionality
+const shuffleArray = (array) => {
+  const shuffled = [...array]
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+  }
+  return shuffled
+}
+
+const shuffleCards = () => {
+  if (filteredGrammar.value.length === 0) return
+  
+  // Create a shuffled version of the current filtered cards
+  shuffledCards.value = shuffleArray(filteredGrammar.value)
+  isShuffled.value = true
+  currentCardIndex.value = 0 // Reset to first card after shuffle
+}
+
+const resetShuffle = () => {
+  isShuffled.value = false
+  shuffledCards.value = []
+  currentCardIndex.value = 0
+}
+
+// Get the current cards array (shuffled or normal)
+const currentCards = computed(() => {
+  return isShuffled.value && shuffledCards.value.length > 0 
+    ? shuffledCards.value 
+    : filteredGrammar.value
+})
 
 // Current card for flashcard mode
 const currentCard = computed(() => {
@@ -646,6 +687,7 @@ onUnmounted(() => {
             <div class="slider-info">
               <span class="current-card-info">
                 Card {{ currentCardIndex + 1 }} of {{ filteredGrammar.length }}
+                <span v-if="isShuffled" class="shuffle-indicator">🔀</span>
               </span>
               <div class="progress-dots">
                 <div 
@@ -658,6 +700,27 @@ onUnmounted(() => {
                   }"
                 ></div>
               </div>
+            </div>
+            
+            <!-- Shuffle Controls -->
+            <div class="shuffle-controls">
+              <button 
+                @click="shuffleCards"
+                class="shuffle-btn"
+                :class="{ active: isShuffled }"
+                :disabled="filteredGrammar.length === 0"
+                title="Shuffle cards and start from card #1"
+              >
+                🔀 Shuffle
+              </button>
+              <button 
+                v-if="isShuffled"
+                @click="resetShuffle"
+                class="reset-shuffle-btn"
+                title="Reset to original order"
+              >
+                ↩️ Reset
+              </button>
             </div>
           </div>
 
@@ -1662,6 +1725,77 @@ onUnmounted(() => {
   box-shadow: 0 0 8px rgba(52, 152, 219, 0.6);
 }
 
+/* Shuffle Controls */
+.shuffle-controls {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.5rem;
+}
+
+.shuffle-btn, .reset-shuffle-btn {
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: rgba(255, 255, 255, 0.9);
+  color: #2c3e50;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.shuffle-btn:hover:not(:disabled), .reset-shuffle-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.15);
+}
+
+.shuffle-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.shuffle-btn.active {
+  background: linear-gradient(135deg, #9b59b6, #8e44ad);
+  color: white;
+  animation: shuffleActive 0.5s ease;
+}
+
+.reset-shuffle-btn {
+  background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+  color: white;
+}
+
+.reset-shuffle-btn:hover {
+  background: linear-gradient(135deg, #7f8c8d, #95a5a6);
+}
+
+.shuffle-indicator {
+  margin-left: 0.5rem;
+  font-size: 0.9em;
+  opacity: 0.8;
+  animation: shuffleIndicator 2s ease-in-out infinite;
+}
+
+@keyframes shuffleActive {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+@keyframes shuffleIndicator {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+
 /* Keyboard Hints */
 .keyboard-hints {
   display: flex;
@@ -2174,6 +2308,40 @@ onUnmounted(() => {
 .app.dark-mode .progress-dot.active {
   background: #4a9eff;
   box-shadow: 0 0 8px rgba(74, 158, 255, 0.6);
+}
+
+/* Dark mode shuffle controls */
+.app.dark-mode .shuffle-btn, 
+.app.dark-mode .reset-shuffle-btn {
+  background: rgba(40, 40, 40, 0.9);
+  color: #e8e8e8;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.app.dark-mode .shuffle-btn:hover:not(:disabled), 
+.app.dark-mode .reset-shuffle-btn:hover {
+  background: rgba(50, 50, 50, 0.9);
+  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.3);
+}
+
+.app.dark-mode .shuffle-btn.active {
+  background: linear-gradient(135deg, #9b59b6, #8e44ad);
+  color: white;
+  border: 1px solid transparent;
+}
+
+.app.dark-mode .reset-shuffle-btn {
+  background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+  color: white;
+  border: 1px solid transparent;
+}
+
+.app.dark-mode .reset-shuffle-btn:hover {
+  background: linear-gradient(135deg, #7f8c8d, #95a5a6);
+}
+
+.app.dark-mode .shuffle-indicator {
+  color: rgba(255, 255, 255, 0.8);
 }
 
 /* Dark mode responsive adjustments */
