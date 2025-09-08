@@ -626,6 +626,41 @@ onUnmounted(() => {
             </button>
           </div>
 
+          <!-- Slider Navigation -->
+          <div class="slider-navigation">
+            <div class="slider-container">
+              <input 
+                type="range" 
+                :min="0" 
+                :max="filteredGrammar.length - 1" 
+                :value="currentCardIndex"
+                @input="goToCard(parseInt($event.target.value))"
+                class="card-slider"
+                :style="{ '--progress': (currentCardIndex / (filteredGrammar.length - 1)) * 100 + '%' }"
+              >
+              <div class="slider-labels">
+                <span class="slider-label start">1</span>
+                <span class="slider-label end">{{ filteredGrammar.length }}</span>
+              </div>
+            </div>
+            <div class="slider-info">
+              <span class="current-card-info">
+                Card {{ currentCardIndex + 1 }} of {{ filteredGrammar.length }}
+              </span>
+              <div class="progress-dots">
+                <div 
+                  v-for="(_, index) in Math.min(filteredGrammar.length, 10)" 
+                  :key="index"
+                  class="progress-dot"
+                  :class="{ 
+                    active: Math.floor((currentCardIndex / filteredGrammar.length) * 10) === index,
+                    filled: Math.floor((currentCardIndex / filteredGrammar.length) * 10) > index
+                  }"
+                ></div>
+              </div>
+            </div>
+          </div>
+
           <!-- Mobile Swipe Info -->
           <div class="mobile-swipe-info">
             <!-- <div class="swipe-counter">
@@ -1500,6 +1535,133 @@ onUnmounted(() => {
   transition: transform 0.3s ease;
 }
 
+/* Slider Navigation */
+.slider-navigation {
+  width: 100%;
+  max-width: 600px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+}
+
+.slider-container {
+  width: 100%;
+  position: relative;
+  padding: 0 1rem;
+}
+
+.card-slider {
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  outline: none;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: all 0.3s ease;
+}
+
+.card-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3498db, #2980b9);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(52, 152, 219, 0.4);
+  transition: all 0.3s ease;
+}
+
+.card-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.6);
+}
+
+.card-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3498db, #2980b9);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 8px rgba(52, 152, 219, 0.4);
+  transition: all 0.3s ease;
+}
+
+.card-slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.6);
+}
+
+.card-slider::-moz-range-track {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+}
+
+/* Progress fill effect */
+.card-slider {
+  background: linear-gradient(
+    to right,
+    #3498db 0%,
+    #3498db var(--progress),
+    rgba(255, 255, 255, 0.2) var(--progress),
+    rgba(255, 255, 255, 0.2) 100%
+  );
+}
+
+.slider-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.slider-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.current-card-info {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.progress-dots {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.progress-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transition: all 0.3s ease;
+}
+
+.progress-dot.filled {
+  background: rgba(52, 152, 219, 0.8);
+  transform: scale(1.1);
+}
+
+.progress-dot.active {
+  background: #3498db;
+  transform: scale(1.3);
+  box-shadow: 0 0 8px rgba(52, 152, 219, 0.6);
+}
+
 /* Keyboard Hints */
 .keyboard-hints {
   display: flex;
@@ -1651,6 +1813,48 @@ onUnmounted(() => {
   
   .keyboard-hints {
     display: none;
+  }
+  
+  /* Mobile slider navigation adjustments */
+  .slider-navigation {
+    max-width: 100%;
+    gap: 0.75rem;
+  }
+  
+  .slider-container {
+    padding: 0 0.5rem;
+  }
+  
+  .card-slider {
+    height: 6px;
+  }
+  
+  .card-slider::-webkit-slider-thumb {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .card-slider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .slider-labels {
+    font-size: 0.8rem;
+    margin-top: 0.25rem;
+  }
+  
+  .current-card-info {
+    font-size: 0.9rem;
+  }
+  
+  .progress-dots {
+    gap: 0.4rem;
+  }
+  
+  .progress-dot {
+    width: 6px;
+    height: 6px;
   }
 }
 
@@ -1916,6 +2120,60 @@ onUnmounted(() => {
 .app.dark-mode .back-to-top:hover {
   background: linear-gradient(135deg, #357abd, #4a9eff);
   box-shadow: 0 6px 20px rgba(74, 158, 255, 0.4);
+}
+
+/* Dark mode slider navigation styles */
+.app.dark-mode .card-slider {
+  background: linear-gradient(
+    to right,
+    #4a9eff 0%,
+    #4a9eff var(--progress),
+    rgba(255, 255, 255, 0.1) var(--progress),
+    rgba(255, 255, 255, 0.1) 100%
+  );
+}
+
+.app.dark-mode .card-slider::-webkit-slider-thumb {
+  background: linear-gradient(135deg, #4a9eff, #357abd);
+  box-shadow: 0 2px 8px rgba(74, 158, 255, 0.4);
+}
+
+.app.dark-mode .card-slider::-webkit-slider-thumb:hover {
+  box-shadow: 0 4px 12px rgba(74, 158, 255, 0.6);
+}
+
+.app.dark-mode .card-slider::-moz-range-thumb {
+  background: linear-gradient(135deg, #4a9eff, #357abd);
+  box-shadow: 0 2px 8px rgba(74, 158, 255, 0.4);
+}
+
+.app.dark-mode .card-slider::-moz-range-thumb:hover {
+  box-shadow: 0 4px 12px rgba(74, 158, 255, 0.6);
+}
+
+.app.dark-mode .card-slider::-moz-range-track {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.app.dark-mode .slider-labels {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.app.dark-mode .current-card-info {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.app.dark-mode .progress-dot {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.app.dark-mode .progress-dot.filled {
+  background: rgba(74, 158, 255, 0.8);
+}
+
+.app.dark-mode .progress-dot.active {
+  background: #4a9eff;
+  box-shadow: 0 0 8px rgba(74, 158, 255, 0.6);
 }
 
 /* Dark mode responsive adjustments */
