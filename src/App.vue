@@ -373,6 +373,28 @@ const saveLevelPreference = (level) => {
   localStorage.setItem('jlpt-selected-level', level)
 }
 
+// Load saved flashcard mode preference from localStorage
+const loadSavedFlashcardMode = () => {
+  try {
+    const savedMode = localStorage.getItem('jlpt-flashcard-mode')
+    if (savedMode !== null) {
+      isFlashcardMode.value = savedMode === 'true'
+    }
+  } catch (error) {
+    console.error('Error loading saved flashcard mode:', error)
+    isFlashcardMode.value = false // fallback to default
+  }
+}
+
+// Save flashcard mode preference to localStorage
+const saveFlashcardModePreference = (mode) => {
+  try {
+    localStorage.setItem('jlpt-flashcard-mode', mode.toString())
+  } catch (error) {
+    console.error('Error saving flashcard mode preference:', error)
+  }
+}
+
 // Handle scroll events for back to top button
 const handleScroll = () => {
   showBackToTop.value = window.scrollY > 500 // Show after scrolling 500px
@@ -956,11 +978,17 @@ watch(selectedVoice, (newVoice) => {
   saveVoicePreference(newVoice)
 })
 
+// Watch for flashcard mode changes and save to localStorage
+watch(isFlashcardMode, (newMode) => {
+  saveFlashcardModePreference(newMode)
+})
+
 // Load data on component mount
 onMounted(() => {
   loadSavedLevel() // Load saved level preference first
   loadFavorites() // Load saved favorites
   loadSavedVoice() // Load saved voice preference
+  loadSavedFlashcardMode() // Load saved flashcard mode preference
   initializeSystemDarkMode() // Initialize system dark mode
   loadGrammarData()
   
