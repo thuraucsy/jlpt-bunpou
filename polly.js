@@ -29,7 +29,8 @@ async function generateTTS(text, outputFile) {
     OutputFormat: "mp3",       // mp3, ogg_vorbis, or pcm
     Text: text,
     TextType: "text",          // or "ssml"
-    VoiceId: "Takumi"          // Japanese male neural voice
+    // VoiceId: "Takumi",          // Japanese male neural voice
+    VoiceId: "Kazuha",          // Japanese female neural voice
   };
 
   try {
@@ -109,7 +110,7 @@ async function processGrammarData() {
         }
         
         // Generate output filename
-        const outputFile = path.join(process.cwd(), 'public', 'voices', `example-${grammar.no}`, `${i + 1}.mp3`);
+        const outputFile = path.join(process.cwd(), 'public', 'voices-female', `example-${grammar.no}`, `${i + 1}.mp3`);
         
         console.log(`🎵 Generating TTS for example ${i + 1}:`);
         console.log(`   Original: ${japaneseText}`);

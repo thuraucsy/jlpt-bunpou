@@ -27,6 +27,13 @@ const favorites = ref(new Set())
 const isDarkMode = ref(false)
 const isSystemDarkMode = ref(false)
 
+// Voice selection functionality
+const selectedVoice = ref('male') // Default to male voice
+const availableVoices = [
+  { value: 'male', label: '👨 Male Voice', path: '/voices' },
+  { value: 'female', label: '👩 Female Voice', path: '/voices-female' }
+]
+
 // System dark mode detection
 const detectSystemDarkMode = () => {
   if (window.matchMedia) {
@@ -267,6 +274,33 @@ const saveFavorites = () => {
   } catch (error) {
     console.error('Error saving favorites:', error)
   }
+}
+
+// Voice selection functions
+const loadSavedVoice = () => {
+  try {
+    const savedVoice = localStorage.getItem('jlpt-selected-voice')
+    if (savedVoice && availableVoices.some(voice => voice.value === savedVoice)) {
+      selectedVoice.value = savedVoice
+    }
+  } catch (error) {
+    console.error('Error loading saved voice:', error)
+    selectedVoice.value = 'male' // fallback to default
+  }
+}
+
+const saveVoicePreference = (voice) => {
+  try {
+    localStorage.setItem('jlpt-selected-voice', voice)
+  } catch (error) {
+    console.error('Error saving voice preference:', error)
+  }
+}
+
+// Get the current voice path based on selection
+const getCurrentVoicePath = () => {
+  const voice = availableVoices.find(v => v.value === selectedVoice.value)
+  return voice ? voice.path : '/voices' // fallback to male voice
 }
 
 
@@ -531,8 +565,9 @@ const playExampleAudio = (grammarNo, exampleIndex) => {
       currentAudio.value.currentTime = 0
     }
     
-    // Generate the correct audio file path
-    const audioPath = `/voices/example-${grammarNo}/${exampleIndex + 1}.mp3`
+    // Generate the correct audio file path using selected voice
+    const voicePath = getCurrentVoicePath()
+    const audioPath = `${voicePath}/example-${grammarNo}/${exampleIndex + 1}.mp3`
     
     // Create and play new audio
     const audio = new Audio(audioPath)
@@ -592,11 +627,12 @@ const playAllExamples = (grammarNo, examples) => {
       return
     }
     
-    // Set up the queue for playing all examples
+    // Set up the queue for playing all examples using selected voice
+    const voicePath = getCurrentVoicePath()
     playAllQueue.value = examples.map((_, index) => ({
       grammarNo,
       exampleIndex: index,
-      audioPath: `/voices/example-${grammarNo}/${index + 1}.mp3`
+      audioPath: `${voicePath}/example-${grammarNo}/${index + 1}.mp3`
     }))
     
     currentQueueIndex.value = 0
@@ -712,11 +748,12 @@ const playAllExamplesWithCallback = (grammarNo, examples, onComplete) => {
       stopPlayingAll()
     }
     
-    // Set up the queue for playing all examples
+    // Set up the queue for playing all examples using selected voice
+    const voicePath = getCurrentVoicePath()
     playAllQueue.value = examples.map((_, index) => ({
       grammarNo,
       exampleIndex: index,
-      audioPath: `/voices/example-${grammarNo}/${index + 1}.mp3`
+      audioPath: `${voicePath}/example-${grammarNo}/${index + 1}.mp3`
     }))
     
     currentQueueIndex.value = 0
@@ -914,10 +951,16 @@ watch(selectedLevel, async (newLevel) => {
   }
 })
 
+// Watch for voice changes and save to localStorage
+watch(selectedVoice, (newVoice) => {
+  saveVoicePreference(newVoice)
+})
+
 // Load data on component mount
 onMounted(() => {
   loadSavedLevel() // Load saved level preference first
   loadFavorites() // Load saved favorites
+  loadSavedVoice() // Load saved voice preference
   initializeSystemDarkMode() // Initialize system dark mode
   loadGrammarData()
   
@@ -997,13 +1040,24 @@ onUnmounted(() => {
             <button v-if="searchTerm" @click="clearSearch()" class="clear-btn">✕</button>
           </div>
 
-          <button 
-            @click="toggleFlashcardMode"
-            class="flashcard-toggle"
-            :class="{ active: isFlashcardMode }"
-          >
-            {{ isFlashcardMode ? '📋 List View' : '🃏 Flashcard Mode' }}
-          </button>
+          <div class="filters-row">
+            <div class="voice-filter">
+              <label for="voice-select">Voice:</label>
+              <select id="voice-select" v-model="selectedVoice" class="voice-select">
+                <option v-for="voice in availableVoices" :key="voice.value" :value="voice.value">
+                  {{ voice.label }}
+                </option>
+              </select>
+            </div>
+
+            <button 
+              @click="toggleFlashcardMode"
+              class="flashcard-toggle"
+              :class="{ active: isFlashcardMode }"
+            >
+              {{ isFlashcardMode ? '📋 List View' : '🃏 Flashcard Mode' }}
+            </button>
+          </div>
         </div>
 
         <!-- Filter Loading State -->
@@ -1452,6 +1506,14 @@ onUnmounted(() => {
   align-items: center;
 }
 
+/* Filters row layout for better organization */
+.filters-row {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 .search-box {
   position: relative;
   flex: 1;
@@ -1460,7 +1522,7 @@ onUnmounted(() => {
 }
 
 .search-input {
-  width: 100%;
+  width: 90%;
   padding: 0.75rem 2.5rem 0.75rem 1rem;
   border: none;
   border-radius: 25px;
@@ -1487,15 +1549,17 @@ onUnmounted(() => {
   font-size: 1.2rem;
 }
 
-.level-filter {
+.level-filter, .voice-filter {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   color: white;
   font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.level-select {
+.level-select, .voice-select {
   padding: 0.5rem;
   border: none;
   border-radius: 5px;
@@ -1877,7 +1941,6 @@ onUnmounted(() => {
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
   flex-shrink: 0;
   white-space: nowrap;
-  margin-left: 50px;
 }
 
 .flashcard-toggle:hover {
@@ -2402,9 +2465,17 @@ onUnmounted(() => {
     padding: 0.6rem 0.8rem;
     font-size: 0.85rem;
   }
+  
+  .level-filter label, .voice-filter label {
+    font-size: 0.9rem;
+  }
+  
+  .level-select, .voice-select {
+    font-size: 0.9rem;
+  }
 }
 
-/* Small desktop screens - prevent wrapping */
+/* Small desktop screens - prevent wrapping and label overlap */
 @media (max-width: 900px) and (min-width: 769px) {
   .search-box {
     min-width: 150px;
@@ -2415,9 +2486,18 @@ onUnmounted(() => {
     font-size: 0.8rem;
   }
   
-  .level-select {
+  .level-select, .voice-select {
     padding: 0.4rem;
     font-size: 0.9rem;
+  }
+  
+  .level-filter, .voice-filter {
+    gap: 0.3rem;
+  }
+  
+  .level-filter label, .voice-filter label {
+    font-size: 0.85rem;
+    min-width: fit-content;
   }
 }
 
@@ -2435,13 +2515,14 @@ onUnmounted(() => {
     flex-direction: column;
     align-items: stretch;
     padding: 0 0.5rem;
-    flex-wrap: wrap;
+    gap: 1rem;
   }
   
   .search-box {
     min-width: auto;
     max-width: none;
     width: 100%;
+    order: 1;
   }
   
   .search-input {
@@ -2452,11 +2533,25 @@ onUnmounted(() => {
   
   .level-filter {
     justify-content: center;
+    order: 2;
   }
   
-  /* Remove left margin on mobile */
+  /* Voice filter and flashcard toggle in same row on mobile */
+  .filters-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    order: 3;
+  }
+  
+  .voice-filter {
+    flex: 1;
+    justify-content: flex-start;
+  }
+  
   .flashcard-toggle {
-    margin-left: 0;
+    flex-shrink: 0;
   }
   
   .grammar-list {
@@ -2706,11 +2801,11 @@ onUnmounted(() => {
   color: #b0b0b0;
 }
 
-.app.dark-mode .level-filter {
+.app.dark-mode .level-filter, .app.dark-mode .voice-filter {
   color: #e8e8e8;
 }
 
-.app.dark-mode .level-select {
+.app.dark-mode .level-select, .app.dark-mode .voice-select {
   background: rgba(40, 40, 40, 0.9);
   color: #e8e8e8;
   border: 1px solid rgba(255, 255, 255, 0.1);
