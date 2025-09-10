@@ -2229,7 +2229,7 @@ onUnmounted(() => {
 }
 
 .flashcard:hover {
-  transform: translateY(-12px) rotateX(5deg);
+  /* transform: translateY(-12px) rotateX(5deg); */
   box-shadow: 0 30px 80px rgba(102, 126, 234, 0.4), 
               0 10px 30px rgba(118, 75, 162, 0.3),
               inset 0 1px 0 rgba(255, 255, 255, 0.3);
