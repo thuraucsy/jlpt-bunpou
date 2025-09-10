@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
+import UserAuth from './components/UserAuth.vue'
 
 // Reactive data
 const grammarData = ref([])
@@ -22,6 +23,10 @@ const isSwipeAnimating = ref(false)
 
 // Favorites functionality
 const favorites = ref(new Set())
+
+// Authentication state
+const user = ref(null)
+const userAuthRef = ref(null)
 
 // Dark mode functionality
 const isDarkMode = ref(false)
@@ -246,6 +251,11 @@ const toggleFavorite = (grammarNo) => {
     favorites.value.add(grammarNo)
   }
   saveFavorites()
+  
+  // Trigger auto-sync if user is authenticated
+  if (userAuthRef.value && user.value) {
+    userAuthRef.value.watchFavorites()
+  }
 }
 
 const isFavorite = (grammarNo) => {
@@ -271,9 +281,25 @@ const saveFavorites = () => {
   try {
     const favArray = Array.from(favorites.value)
     localStorage.setItem('jlpt-favorites', JSON.stringify(favArray))
+    
+    // Update local modification timestamp
+    const now = new Date().toISOString()
+    localStorage.setItem('favoritesLastModified', now)
+    console.log('Local favorites updated at:', now)
   } catch (error) {
     console.error('Error saving favorites:', error)
   }
+}
+
+// Handle favorites updates from UserAuth component
+const handleFavoritesUpdated = (newFavorites) => {
+  favorites.value = newFavorites
+  saveFavorites()
+}
+
+// Handle auth state changes from UserAuth component
+const handleAuthStateChanged = (newUser) => {
+  user.value = newUser
 }
 
 // Voice selection functions
@@ -1021,8 +1047,18 @@ onUnmounted(() => {
 <template>
   <div class="app" :class="{ 'dark-mode': isDarkMode }">
     <header class="header">
-      <h1>🇯🇵 JLPT Grammar Guide</h1>
-      <p class="subtitle">Grammar Points <br/>for the Japanese Language Proficiency Test</p>
+      <div class="header-content">
+        <div class="header-text">
+          <h1>🇯🇵 JLPT Grammar Guide</h1>
+          <p class="subtitle">Grammar Points <br/>for the Japanese Language Proficiency Test</p>
+        </div>
+        <UserAuth 
+          ref="userAuthRef"
+          :favorites="favorites"
+          @favoritesUpdated="handleFavoritesUpdated"
+          @authStateChanged="handleAuthStateChanged"
+        />
+      </div>
     </header>
 
     <div class="container">
@@ -1458,22 +1494,23 @@ onUnmounted(() => {
 .header {
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(10px);
-  padding: 2rem 0;
+  padding: 1.5rem 0;
   text-align: center;
   box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
 }
 
 .header h1 {
   margin: 0;
-  font-size: 2.5rem;
+  font-size: 2.2rem;
   color: #2c3e50;
   font-weight: 700;
 }
 
 .subtitle {
-  margin: 0.5rem 0 0 0;
+  margin: 0.25rem 0 0 0;
   color: #7f8c8d;
-  font-size: 1.1rem;
+  font-size: 1rem;
+  line-height: 1.3;
 }
 
 .container {
@@ -3198,24 +3235,44 @@ onUnmounted(() => {
   }
 }
 
+/* Header Content Layout */
+.header-content {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.header-text {
+  text-align: left;
+  flex: 1;
+}
+
 /* Dark mode responsive adjustments */
 @media (max-width: 768px) {
+  .header {
+    padding: 0.75rem 0;
+  }
+  
   .header-content {
     flex-direction: column;
-    gap: 1rem;
+    gap: 0.75rem;
     padding: 0 0.5rem;
   }
   
-  .dark-mode-toggle {
-    position: static;
-    transform: none;
-    width: 45px;
-    height: 45px;
-    font-size: 1.3rem;
+  .header h1 {
+    font-size: 1.6rem;
+    margin: 0;
   }
   
-  .dark-mode-toggle:hover {
-    transform: scale(1.1);
+  .subtitle {
+    font-size: 0.85rem;
+    margin: 0.1rem 0 0 0;
+    line-height: 1.2;
   }
   
   .header-text {
@@ -3224,14 +3281,45 @@ onUnmounted(() => {
 }
 
 @media (max-width: 480px) {
-  .header-content {
-    padding: 0 0.25rem;
+  .header {
+    padding: 0.5rem 0;
   }
   
-  .dark-mode-toggle {
-    width: 40px;
-    height: 40px;
+  .header-content {
+    padding: 0 0.25rem;
+    gap: 0.5rem;
+  }
+  
+  .header h1 {
+    font-size: 1.4rem;
+    margin: 0;
+  }
+  
+  .subtitle {
+    font-size: 0.75rem;
+    margin: 0.05rem 0 0 0;
+    line-height: 1.1;
+  }
+}
+
+/* Extra compact mobile view */
+@media (max-width: 360px) {
+  .header {
+    padding: 0.4rem 0;
+  }
+  
+  .header-content {
+    gap: 0.4rem;
+    padding: 0 0.15rem;
+  }
+  
+  .header h1 {
     font-size: 1.2rem;
+  }
+  
+  .subtitle {
+    font-size: 0.7rem;
+    margin: 0;
   }
 }
 </style>
