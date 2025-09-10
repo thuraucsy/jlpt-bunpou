@@ -12,7 +12,7 @@
         <span v-else class="google-icon">🔐</span>
         {{ signingIn ? 'Signing in...' : 'Sign in with Google' }}
       </button>
-      <p class="auth-description">Sign in to sync your favorites across devices</p>
+      <!-- <p class="auth-description">Sign in to sync your favorites across devices</p> -->
     </div>
 
     <!-- Signed In State -->
@@ -32,7 +32,7 @@
         </div>
       </div>
       <div class="user-actions">
-        <button @click="syncNow" class="sync-btn" :disabled="syncing" title="Sync favorites now">
+        <button @click="syncNow" class="sync-btn" :disabled="syncing" title="Sync favorites from cloud">
           <span v-if="syncing" class="spinner-small"></span>
           <span v-else>🔄</span>
         </button>
@@ -260,13 +260,21 @@ defineExpose({
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.75rem;
-  padding: 1rem;
-  background: rgba(255, 255, 255, 0.1);
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(10px);
-  border-radius: 15px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  min-width: 280px;
+  max-width: 320px;
+}
+
+.user-auth:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.15);
 }
 
 .auth-loading {
@@ -303,23 +311,23 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  background: linear-gradient(135deg, #4285f4, #34a853);
+  padding: 0.6rem 1.2rem;
+  background: linear-gradient(135deg, #3498db, #2980b9);
   color: white;
   border: none;
-  border-radius: 25px;
-  font-size: 0.9rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: 0 3px 12px rgba(66, 133, 244, 0.3);
+  box-shadow: 0 3px 12px rgba(52, 152, 219, 0.3);
   white-space: nowrap;
 }
 
 .sign-in-btn:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 5px 16px rgba(66, 133, 244, 0.4);
-  background: linear-gradient(135deg, #34a853, #4285f4);
+  box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
+  background: linear-gradient(135deg, #2980b9, #3498db);
 }
 
 .sign-in-btn:disabled {
@@ -333,10 +341,11 @@ defineExpose({
 }
 
 .auth-description {
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 0.8rem;
+  color: #7f8c8d;
+  font-size: 0.75rem;
   margin: 0;
-  line-height: 1.4;
+  line-height: 1.3;
+  text-align: center;
 }
 
 /* Signed In State */
@@ -356,11 +365,12 @@ defineExpose({
 }
 
 .user-avatar {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  border: 2px solid rgba(52, 152, 219, 0.3);
   flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 }
 
 .user-details {
@@ -372,16 +382,16 @@ defineExpose({
 }
 
 .user-name {
-  color: white;
+  color: #2c3e50;
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .sync-status {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
@@ -394,11 +404,11 @@ defineExpose({
 }
 
 .sync-status.synced {
-  color: #28a745;
+  color: #27ae60;
 }
 
 .sync-status.not-synced {
-  color: rgba(255, 255, 255, 0.6);
+  color: #7f8c8d;
 }
 
 @keyframes pulse {
@@ -413,8 +423,8 @@ defineExpose({
 }
 
 .sync-btn, .sign-out-btn {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border: none;
   border-radius: 50%;
   display: flex;
@@ -422,7 +432,7 @@ defineExpose({
   justify-content: center;
   cursor: pointer;
   transition: all 0.3s ease;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   flex-shrink: 0;
 }
 
@@ -461,9 +471,9 @@ defineExpose({
   gap: 0.5rem;
   background: linear-gradient(135deg, #dc3545, #c82333);
   color: white;
-  padding: 0.75rem 1rem;
-  border-radius: 10px;
-  font-size: 0.85rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
   cursor: pointer;
   transition: all 0.3s ease;
   width: 100%;
@@ -507,13 +517,17 @@ defineExpose({
 
 /* Dark Mode Styles */
 .app.dark-mode .user-auth {
-  background: rgba(40, 40, 40, 0.9);
+  background: rgba(40, 40, 40, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+.app.dark-mode .user-auth:hover {
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.4);
 }
 
 .app.dark-mode .auth-description {
-  color: rgba(255, 255, 255, 0.7);
+  color: #b0b0b0;
 }
 
 .app.dark-mode .user-name {
@@ -521,7 +535,7 @@ defineExpose({
 }
 
 .app.dark-mode .sync-status.synced {
-  color: #4caf50;
+  color: #2ecc71;
 }
 
 .app.dark-mode .sync-status.not-synced {
@@ -529,20 +543,32 @@ defineExpose({
 }
 
 .app.dark-mode .user-avatar {
-  border: 2px solid rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(74, 158, 255, 0.3);
+}
+
+.app.dark-mode .sign-in-btn {
+  background: linear-gradient(135deg, #4a9eff, #357abd);
+  box-shadow: 0 4px 15px rgba(74, 158, 255, 0.3);
+}
+
+.app.dark-mode .sign-in-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #357abd, #4a9eff);
+  box-shadow: 0 6px 20px rgba(74, 158, 255, 0.4);
 }
 
 /* Responsive Design */
 @media (max-width: 768px) {
   .user-auth {
-    padding: 0.75rem;
-    gap: 0.5rem;
+    padding: 0.5rem;
+    gap: 0.35rem;
+    min-width: 240px;
+    max-width: 280px;
   }
   
   .signed-in {
     flex-direction: column;
     align-items: stretch;
-    gap: 0.75rem;
+    gap: 0.5rem;
   }
   
   .user-info {
@@ -554,51 +580,112 @@ defineExpose({
   }
   
   .sign-in-btn {
-    padding: 0.6rem 1.2rem;
-    font-size: 0.85rem;
+    padding: 0.45rem 0.9rem;
+    font-size: 0.75rem;
   }
   
   .auth-description {
-    font-size: 0.75rem;
+    font-size: 0.65rem;
+    line-height: 1.2;
   }
 }
 
 @media (max-width: 480px) {
   .user-auth {
-    padding: 0.5rem;
+    padding: 0.4rem;
+    gap: 0.3rem;
+    min-width: 220px;
+    max-width: 260px;
   }
   
   .user-info {
-    gap: 0.5rem;
+    gap: 0.35rem;
   }
   
   .user-avatar {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
   }
   
   .user-name {
-    font-size: 0.85rem;
+    font-size: 0.75rem;
   }
   
   .sync-status {
-    font-size: 0.7rem;
+    font-size: 0.6rem;
   }
   
   .sync-btn, .sign-out-btn {
-    width: 32px;
-    height: 32px;
-    font-size: 0.8rem;
+    width: 26px;
+    height: 26px;
+    font-size: 0.7rem;
   }
   
   .sign-in-btn {
-    padding: 0.5rem 1rem;
-    font-size: 0.8rem;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.7rem;
   }
   
   .auth-error {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.8rem;
+    padding: 0.4rem 0.5rem;
+    font-size: 0.7rem;
+  }
+  
+  .auth-description {
+    font-size: 0.6rem;
+    line-height: 1.1;
+  }
+}
+
+/* Extra compact mobile view */
+@media (max-width: 360px) {
+  .user-auth {
+    padding: 0.35rem;
+    gap: 0.25rem;
+    min-width: 200px;
+    max-width: 240px;
+  }
+  
+  .signed-in {
+    gap: 0.4rem;
+  }
+  
+  .user-info {
+    gap: 0.3rem;
+  }
+  
+  .user-avatar {
+    width: 26px;
+    height: 26px;
+  }
+  
+  .user-name {
+    font-size: 0.7rem;
+  }
+  
+  .sync-status {
+    font-size: 0.55rem;
+  }
+  
+  .sync-btn, .sign-out-btn {
+    width: 24px;
+    height: 24px;
+    font-size: 0.65rem;
+  }
+  
+  .sign-in-btn {
+    padding: 0.35rem 0.7rem;
+    font-size: 0.65rem;
+  }
+  
+  .auth-error {
+    padding: 0.35rem 0.45rem;
+    font-size: 0.65rem;
+  }
+  
+  .auth-description {
+    font-size: 0.55rem;
+    line-height: 1.1;
   }
 }
 </style>
