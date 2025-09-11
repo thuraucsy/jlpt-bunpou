@@ -244,7 +244,7 @@ const getTotalFavoriteCount = () => {
 }
 
 // Favorites functionality
-const toggleFavorite = (grammarNo) => {
+const toggleFavorite = async (grammarNo) => {
   if (favorites.value.has(grammarNo)) {
     favorites.value.delete(grammarNo)
   } else {
@@ -252,9 +252,18 @@ const toggleFavorite = (grammarNo) => {
   }
   saveFavorites()
   
-  // Trigger auto-sync if user is authenticated
+  // Trigger real-time sync if user is authenticated
   if (userAuthRef.value && user.value) {
-    userAuthRef.value.watchFavorites()
+    try {
+      // Use the new updateFavorites method for real-time syncing
+      const authService = (await import('./services/authService.js')).default
+      await authService.updateFavorites(favorites.value)
+      console.log('Favorites updated in real-time')
+    } catch (error) {
+      console.error('Error updating favorites in real-time:', error)
+      // Fallback to the old method
+      userAuthRef.value.watchFavorites()
+    }
   }
 }
 

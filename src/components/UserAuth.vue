@@ -78,6 +78,7 @@ const lastSyncTime = ref(null)
 
 // Auth state unsubscribe function
 let unsubscribeAuth = null
+let unsubscribeFavorites = null
 
 // Computed properties
 const syncStatusClass = computed(() => {
@@ -230,6 +231,28 @@ onMounted(async () => {
         }).catch((err) => {
           console.error('Error merging favorites on auth state change:', err)
         })
+        
+        // Subscribe to real-time favorites updates
+        unsubscribeFavorites = authService.onFavoritesChanged((cloudFavorites, cloudLastModified) => {
+          console.log('Real-time favorites update in UserAuth component')
+          
+          // Check if this update is different from current local favorites
+          const localArray = Array.from(props.favorites).sort()
+          const cloudArray = Array.from(cloudFavorites).sort()
+          const isDifferent = JSON.stringify(localArray) !== JSON.stringify(cloudArray)
+          
+          if (isDifferent) {
+            console.log('Applying real-time favorites update:', cloudFavorites.size, 'items')
+            emit('favoritesUpdated', cloudFavorites)
+            lastSyncTime.value = cloudLastModified
+          }
+        })
+      } else {
+        // User signed out, cleanup favorites listener
+        if (unsubscribeFavorites) {
+          unsubscribeFavorites()
+          unsubscribeFavorites = null
+        }
       }
     })
   } catch (err) {
@@ -242,6 +265,9 @@ onMounted(async () => {
 onUnmounted(() => {
   if (unsubscribeAuth) {
     unsubscribeAuth()
+  }
+  if (unsubscribeFavorites) {
+    unsubscribeFavorites()
   }
   if (syncTimeout) {
     clearTimeout(syncTimeout)

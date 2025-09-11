@@ -7,7 +7,8 @@ import {
   doc, 
   getDoc, 
   setDoc, 
-  updateDoc 
+  updateDoc,
+  onSnapshot 
 } from 'firebase/firestore'
 import { auth, googleProvider, db } from '../firebase.js'
 
@@ -15,13 +16,28 @@ class AuthService {
   constructor() {
     this.user = null
     this.authStateCallbacks = []
+    this.favoritesListenerCallbacks = []
+    this.favoritesUnsubscribe = null
   }
 
   // Initialize auth state listener
   init() {
     return new Promise((resolve) => {
       onAuthStateChanged(auth, (user) => {
+        const previousUser = this.user
         this.user = user
+        
+        // Handle favorites listener lifecycle
+        if (user && !previousUser) {
+          // User signed in, start favorites listener if there are callbacks
+          if (this.favoritesListenerCallbacks.length > 0) {
+            this.startFavoritesListener()
+          }
+        } else if (!user && previousUser) {
+          // User signed out, stop favorites listener
+          this.stopFavoritesListener()
+        }
+        
         this.authStateCallbacks.forEach(callback => callback(user))
         resolve(user)
       })
@@ -268,6 +284,144 @@ class AuthService {
     } catch (error) {
       console.error('Error getting user profile:', error)
       return null
+    }
+  }
+
+  // Subscribe to real-time favorites updates
+  onFavoritesChanged(callback) {
+    this.favoritesListenerCallbacks.push(callback)
+    
+    // If user is authenticated, start listening immediately
+    if (this.user) {
+      this.startFavoritesListener()
+    }
+    
+    // Return unsubscribe function
+    return () => {
+      const index = this.favoritesListenerCallbacks.indexOf(callback)
+      if (index > -1) {
+        this.favoritesListenerCallbacks.splice(index, 1)
+      }
+      
+      // If no more callbacks, stop the listener
+      if (this.favoritesListenerCallbacks.length === 0) {
+        this.stopFavoritesListener()
+      }
+    }
+  }
+
+  // Start listening to favorites changes in Firestore
+  startFavoritesListener() {
+    if (!this.user || this.favoritesUnsubscribe) {
+      return // Already listening or not authenticated
+    }
+
+    try {
+      const userRef = doc(db, 'users', this.user.uid)
+      
+      console.log('Starting real-time favorites listener for user:', this.user.uid)
+      
+      this.favoritesUnsubscribe = onSnapshot(userRef, (doc) => {
+        if (doc.exists()) {
+          const userData = doc.data()
+          const cloudFavorites = new Set(userData.favorites || [])
+          const cloudLastModified = userData.favoritesLastModified?.toDate() || new Date(0)
+          
+          console.log('Real-time favorites update received:', cloudFavorites.size, 'items')
+          
+          // Update local timestamp
+          localStorage.setItem('favoritesLastModified', cloudLastModified.toISOString())
+          
+          // Notify all callbacks
+          this.favoritesListenerCallbacks.forEach(callback => {
+            try {
+              callback(cloudFavorites, cloudLastModified)
+            } catch (error) {
+              console.error('Error in favorites listener callback:', error)
+            }
+          })
+        } else {
+          console.log('User document does not exist, creating it...')
+          this.createUserDocument(this.user).catch(error => {
+            console.error('Error creating user document in listener:', error)
+          })
+        }
+      }, (error) => {
+        console.error('Error in favorites listener:', error)
+        // Retry after a delay
+        setTimeout(() => {
+          if (this.user && this.favoritesListenerCallbacks.length > 0) {
+            console.log('Retrying favorites listener...')
+            this.stopFavoritesListener()
+            this.startFavoritesListener()
+          }
+        }, 5000)
+      })
+    } catch (error) {
+      console.error('Error starting favorites listener:', error)
+    }
+  }
+
+  // Stop listening to favorites changes
+  stopFavoritesListener() {
+    if (this.favoritesUnsubscribe) {
+      console.log('Stopping real-time favorites listener')
+      this.favoritesUnsubscribe()
+      this.favoritesUnsubscribe = null
+    }
+  }
+
+  // Update favorites with conflict resolution
+  async updateFavorites(favorites, skipListener = false) {
+    if (!this.user) {
+      throw new Error('User not authenticated')
+    }
+
+    try {
+      const userRef = doc(db, 'users', this.user.uid)
+      const favoritesArray = Array.from(favorites)
+      const now = new Date()
+      
+      console.log('Updating favorites in cloud:', favoritesArray.length, 'items')
+      
+      // Temporarily stop listener to avoid echo
+      const wasListening = !!this.favoritesUnsubscribe
+      if (wasListening && !skipListener) {
+        this.stopFavoritesListener()
+      }
+      
+      await updateDoc(userRef, {
+        favorites: favoritesArray,
+        lastSyncAt: now,
+        favoritesLastModified: now
+      })
+
+      // Store local timestamp
+      localStorage.setItem('favoritesLastModified', now.toISOString())
+
+      // Restart listener after a short delay
+      if (wasListening && !skipListener) {
+        setTimeout(() => {
+          if (this.user && this.favoritesListenerCallbacks.length > 0) {
+            this.startFavoritesListener()
+          }
+        }, 500)
+      }
+
+      console.log('Favorites updated in cloud successfully')
+      return true
+    } catch (error) {
+      console.error('Error updating favorites in cloud:', error)
+      
+      // If document doesn't exist, create it first
+      if (error.code === 'not-found') {
+        console.log('User document not found, creating it...')
+        await this.createUserDocument(this.user)
+        // Retry the update
+        return this.updateFavorites(favorites, skipListener)
+      }
+      
+      throw error
     }
   }
 }
