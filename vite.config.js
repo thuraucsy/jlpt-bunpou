@@ -37,8 +37,8 @@ export default defineConfig({
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',
-        scope: '/jlpt-bunpou/',
-        start_url: '/jlpt-bunpou/',
+        scope: '/',
+        start_url: '/',
         icons: [
           {
             src: 'jp_grammar_192x192.png',
